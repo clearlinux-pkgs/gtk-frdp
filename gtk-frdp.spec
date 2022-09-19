@@ -4,13 +4,14 @@
 #
 Name     : gtk-frdp
 Version  : 3.37.1
-Release  : 1
+Release  : 2
 URL      : https://gitlab.gnome.org/GNOME/gtk-frdp/-/archive/v3.37.1/gtk-frdp-v3.37.1.tar.gz
 Source0  : https://gitlab.gnome.org/GNOME/gtk-frdp/-/archive/v3.37.1/gtk-frdp-v3.37.1.tar.gz
 Summary  : No detailed summary available
 Group    : Development/Tools
 License  : LGPL-3.0
 Requires: gtk-frdp-data = %{version}-%{release}
+Requires: gtk-frdp-lib = %{version}-%{release}
 Requires: gtk-frdp-license = %{version}-%{release}
 BuildRequires : FreeRDP-dev
 BuildRequires : buildreq-gnome
@@ -30,12 +31,23 @@ data components for the gtk-frdp package.
 %package dev
 Summary: dev components for the gtk-frdp package.
 Group: Development
+Requires: gtk-frdp-lib = %{version}-%{release}
 Requires: gtk-frdp-data = %{version}-%{release}
 Provides: gtk-frdp-devel = %{version}-%{release}
 Requires: gtk-frdp = %{version}-%{release}
 
 %description dev
 dev components for the gtk-frdp package.
+
+
+%package lib
+Summary: lib components for the gtk-frdp package.
+Group: Libraries
+Requires: gtk-frdp-data = %{version}-%{release}
+Requires: gtk-frdp-license = %{version}-%{release}
+
+%description lib
+lib components for the gtk-frdp package.
 
 
 %package license
@@ -55,7 +67,7 @@ export http_proxy=http://127.0.0.1:9/
 export https_proxy=http://127.0.0.1:9/
 export no_proxy=localhost,127.0.0.1,0.0.0.0
 export LANG=C.UTF-8
-export SOURCE_DATE_EPOCH=1632330768
+export SOURCE_DATE_EPOCH=1663621382
 export GCC_IGNORE_WERROR=1
 export AR=gcc-ar
 export RANLIB=gcc-ranlib
@@ -69,7 +81,7 @@ ninja -v -C builddir
 
 %install
 mkdir -p %{buildroot}/usr/share/package-licenses/gtk-frdp
-cp %{_builddir}/gtk-frdp-v3.37.1/COPYING %{buildroot}/usr/share/package-licenses/gtk-frdp/a8a12e6867d7ee39c21d9b11a984066099b6fb6b
+cp %{_builddir}/gtk-frdp-v%{version}/COPYING %{buildroot}/usr/share/package-licenses/gtk-frdp/a8a12e6867d7ee39c21d9b11a984066099b6fb6b || :
 DESTDIR=%{buildroot} ninja -C builddir install
 
 %files
@@ -88,8 +100,11 @@ DESTDIR=%{buildroot} ninja -C builddir install
 /usr/include/gtk-frdp/frdp-session.h
 /usr/include/gtk-frdp/gtk-frdp-version.h
 /usr/include/gtk-frdp/gtk-frdp.h
-/usr/lib64/libgtk-frdp-0.1.so
 /usr/lib64/pkgconfig/gtk-frdp-0.1.pc
+
+%files lib
+%defattr(-,root,root,-)
+/usr/lib64/libgtk-frdp-0.1.so
 
 %files license
 %defattr(0644,root,root,0755)
