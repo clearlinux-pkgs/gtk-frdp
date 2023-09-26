@@ -1,7 +1,10 @@
 libc.so.6
 libcairo.so.2
+libfreerdp-client2.so.2
 libfreerdp2.so.2
+libfuse3.so.3
 libgdk-3.so.0
+libgdk_pixbuf-2.0.so.0
 libgio-2.0.so.0
 libglib-2.0.so.0
 libgobject-2.0.so.0
