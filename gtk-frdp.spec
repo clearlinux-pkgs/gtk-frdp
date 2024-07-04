@@ -5,7 +5,7 @@
 #
 Name     : gtk-frdp
 Version  : 3.37.1
-Release  : 5
+Release  : 6
 URL      : https://gitlab.gnome.org/GNOME/gtk-frdp/-/archive/v3.37.1/gtk-frdp-v3.37.1.tar.gz
 Source0  : https://gitlab.gnome.org/GNOME/gtk-frdp/-/archive/v3.37.1/gtk-frdp-v3.37.1.tar.gz
 Summary  : No detailed summary available
