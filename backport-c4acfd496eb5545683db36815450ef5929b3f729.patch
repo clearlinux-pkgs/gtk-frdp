@@ -1,0 +1,41 @@
+From c4acfd496eb5545683db36815450ef5929b3f729 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Fri, 4 Nov 2022 15:11:40 +0100
+Subject: [PATCH] Bump version to 0.2.0
+
+---
+ meson.build                                        | 2 +-
+ src/{GtkFrdp-0.1.metadata => GtkFrdp-0.2.metadata} | 0
+ src/meson.build                                    | 2 +-
+ 3 files changed, 2 insertions(+), 2 deletions(-)
+ rename src/{GtkFrdp-0.1.metadata => GtkFrdp-0.2.metadata} (100%)
+
+diff --git a/meson.build b/meson.build
+index 7f94529..d992c80 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1,6 +1,6 @@
+ project('gtk-frdp',
+   ['c', 'vala'],
+-  version: '0.1.0',
++  version: '0.2.0',
+   meson_version: '>= 0.40.0',
+ )
+ 
+diff --git a/src/GtkFrdp-0.1.metadata b/src/GtkFrdp-0.2.metadata
+similarity index 100%
+rename from src/GtkFrdp-0.1.metadata
+rename to src/GtkFrdp-0.2.metadata
+diff --git a/src/meson.build b/src/meson.build
+index 4974ce4..44cdb13 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -1,4 +1,4 @@
+-api_version = '0.1'
++api_version = '0.2'
+ 
+ gtk_frdp_sources = [
+   'frdp-display.c',
+-- 
+2.47.1
+

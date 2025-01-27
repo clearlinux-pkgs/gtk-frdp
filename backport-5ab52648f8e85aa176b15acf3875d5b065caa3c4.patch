@@ -1,0 +1,27 @@
+From 5ab52648f8e85aa176b15acf3875d5b065caa3c4 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Thu, 7 Apr 2022 12:43:38 +0200
+Subject: [PATCH] frdp-session: Disable RedirectClipboard since it's not
+ supported
+
+Otherwise FreeRDP might attempt to initialize its clipboard redirection,
+which isn't implemented on gtk-frdp's side yet.
+---
+ src/frdp-session.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ec5a577..e72210f 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -564,6 +564,7 @@ frdp_session_init_freerdp (FrdpSession *self)
+   settings->SupportDisplayControl = TRUE;
+   settings->RemoteFxCodec = TRUE;
+   settings->ColorDepth = 32;
++  settings->RedirectClipboard = FALSE;
+ 
+   freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
+ }
+-- 
+2.47.1
+

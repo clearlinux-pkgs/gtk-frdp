@@ -1,0 +1,65 @@
+From 59175a8e60c6344f2fff4369d6bff65a9abfa249 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 13 Mar 2024 17:13:58 +0100
+Subject: [PATCH] frdp-session: Limit value of mouse scroll
+
+The scroll value has to be a two's complement. Previously,
+it could overflow and modify other flags.
+
+Thanks to Akallabeth for reporting this.
+---
+ src/frdp-session.c | 34 +++++++++++++++++++++++-----------
+ 1 file changed, 23 insertions(+), 11 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 09210ed..1b66861 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -1410,21 +1410,33 @@ frdp_session_mouse_smooth_scroll_event (FrdpSession          *self,
+   if (fabs (delta_y) >= fabs (delta_x)) {
+     flags |= PTR_FLAGS_WHEEL;
+     value = (guint16) round (fabs (delta_y) * 0x78);
+-    /* Reversing direction here to reflect the behaviour on local side. */
+-    if (delta_y < 0.0) {
+-      flags |= value & WheelRotationMask;
+-    } else {
+-      flags |= PTR_FLAGS_WHEEL_NEGATIVE;
+-      flags |= (~value + 1) & WheelRotationMask;
++    if (value > 0) {
++      /* Reversing direction here to reflect the behaviour on local side. */
++      if (delta_y < 0.0) {
++        if (value > 255)
++          value = 255;
++        flags |= value & WheelRotationMask;
++      } else {
++        if (value > 256)
++          value = 256;
++        flags |= PTR_FLAGS_WHEEL_NEGATIVE;
++        flags |= (~value + 1) & WheelRotationMask;
++      }
+     }
+   } else {
+     flags |= PTR_FLAGS_HWHEEL;
+     value = (guint16) round (fabs (delta_x) * 0x78);
+-    if (delta_x < 0.0) {
+-      flags |= PTR_FLAGS_WHEEL_NEGATIVE;
+-      flags |= (~value + 1) & WheelRotationMask;
+-    } else {
+-      flags |= value & WheelRotationMask;
++    if (value > 0) {
++      if (delta_x < 0.0) {
++        if (value > 256)
++          value = 256;
++        flags |= PTR_FLAGS_WHEEL_NEGATIVE;
++        flags |= (~value + 1) & WheelRotationMask;
++      } else {
++        if (value > 255)
++          value = 255;
++        flags |= value & WheelRotationMask;
++      }
+     }
+   }
+ 
+-- 
+2.47.1
+

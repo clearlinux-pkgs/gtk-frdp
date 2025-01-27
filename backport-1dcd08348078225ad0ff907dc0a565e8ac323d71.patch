@@ -1,0 +1,57 @@
+From 1dcd08348078225ad0ff907dc0a565e8ac323d71 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Thu, 2 Mar 2023 12:55:26 +0100
+Subject: [PATCH] Fix MODULE names for FrdpDisplay and FrdpSession
+
+Previously, MODULE name contained also OBJ_NAME when declaring
+FrdpDisplay and FrdpSession. This commit sets the MODULE to "FRDP".
+---
+ src/frdp-display.c | 2 +-
+ src/frdp-display.h | 3 +--
+ src/frdp-session.h | 2 +-
+ 3 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index e0f48bd..7f13772 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -594,7 +594,7 @@ frdp_display_authenticate (FrdpDisplay *self,
+                            gchar **password,
+                            gchar **domain)
+ {
+-  FrdpDisplayClass *klass =  FRDP_DISPLAY_DISPLAY_GET_CLASS (self);
++  FrdpDisplayClass *klass = FRDP_DISPLAY_GET_CLASS (self);
+ 
+   g_signal_emit (self, signals[RDP_NEEDS_AUTHENTICATION], 0);
+ 
+diff --git a/src/frdp-display.h b/src/frdp-display.h
+index 06fd9f8..3551e4e 100644
+--- a/src/frdp-display.h
++++ b/src/frdp-display.h
+@@ -23,9 +23,8 @@
+ G_BEGIN_DECLS
+ 
+ #define FRDP_TYPE_DISPLAY (frdp_display_get_type())
+-#define FRDP_DISPLAY(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj), FRDP_TYPE_DISPLAY, FrdpDisplay))
+ 
+-G_DECLARE_DERIVABLE_TYPE (FrdpDisplay, frdp_display, FRDP_DISPLAY, DISPLAY, GtkDrawingArea)
++G_DECLARE_DERIVABLE_TYPE (FrdpDisplay, frdp_display, FRDP, DISPLAY, GtkDrawingArea)
+ 
+ typedef struct _FrdpDisplayPrivate FrdpDisplayPrivate;
+ 
+diff --git a/src/frdp-session.h b/src/frdp-session.h
+index 4539168..8357f32 100644
+--- a/src/frdp-session.h
++++ b/src/frdp-session.h
+@@ -25,7 +25,7 @@ G_BEGIN_DECLS
+ 
+ #define FRDP_TYPE_SESSION (frdp_session_get_type())
+ 
+-G_DECLARE_FINAL_TYPE (FrdpSession, frdp_session, FRDP_SESSION, SESSION, GObject)
++G_DECLARE_FINAL_TYPE (FrdpSession, frdp_session, FRDP, SESSION, GObject)
+ 
+ typedef struct _FrdpSessionPrivate FrdpSessionPrivate;
+ 
+-- 
+2.47.1
+

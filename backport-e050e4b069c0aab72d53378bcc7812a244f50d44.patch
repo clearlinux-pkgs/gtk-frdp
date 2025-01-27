@@ -1,0 +1,45 @@
+From e050e4b069c0aab72d53378bcc7812a244f50d44 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 13:53:00 +0200
+Subject: [PATCH] frdp-display: Do not block CPU during iterations
+
+Set "may_block" to FALSE for g_main_context_iteration()
+for the iterations in withc we wait for response.
+---
+ src/frdp-display.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index 7975fff..9c0622f 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -652,7 +652,7 @@ frdp_display_authenticate (FrdpDisplay  *self,
+   context = g_main_context_default ();
+ 
+   while (priv->awaiting_authentication)
+-    g_main_context_iteration (context, FALSE);
++    g_main_context_iteration (context, TRUE);
+ 
+   *username = *password = *domain = NULL;
+   g_object_get (priv->session,
+@@ -728,7 +728,7 @@ frdp_display_certificate_verify_ex (FrdpDisplay *display,
+   context = g_main_context_default ();
+ 
+   while (priv->awaiting_certificate_verification)
+-    g_main_context_iteration (context, FALSE);
++    g_main_context_iteration (context, TRUE);
+ 
+   return priv->certificate_verification_value;
+ }
+@@ -766,7 +766,7 @@ frdp_display_certificate_change_verify_ex (FrdpDisplay *display,
+   context = g_main_context_default ();
+ 
+   while (priv->awaiting_certificate_change_verification)
+-    g_main_context_iteration (context, FALSE);
++    g_main_context_iteration (context, TRUE);
+ 
+   return priv->certificate_change_verification_value;
+ }
+-- 
+2.47.1
+

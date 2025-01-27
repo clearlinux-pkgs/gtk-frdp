@@ -1,0 +1,24 @@
+From c8498648c41349f64848438a2e7afb20a5a1e380 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Wed, 6 Apr 2022 16:57:03 +0200
+Subject: [PATCH] frdp-session: Handle DNS_NAME_NOT_FOUND error from FreeRDP
+
+---
+ src/frdp-session.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index a708836..c29874a 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -593,6 +593,7 @@ frdp_session_connect_thread (GTask        *task,
+         case FREERDP_ERROR_CONNECT_TRANSPORT_FAILED:
+         case ERRCONNECT_CONNECT_TRANSPORT_FAILED:
+         case FREERDP_ERROR_TLS_CONNECT_FAILED:
++        case FREERDP_ERROR_DNS_NAME_NOT_FOUND:
+             g_signal_emit (self,
+                            signals[RDP_AUTH_FAILURE], 0,
+                            freerdp_get_last_error_string (error_code));
+-- 
+2.47.1
+

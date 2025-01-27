@@ -1,0 +1,29 @@
+From cf10494813186ea2e4b3cad92821a74fbf0f6aaa Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 11:27:04 +0200
+Subject: [PATCH] clipboard: Clear the clipboard if it contains remote data
+
+Clear the clipboard in finalize if it contains remote data
+so that these can not be requested after finalize.
+---
+ src/frdp-channel-clipboard.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-channel-clipboard.c b/src/frdp-channel-clipboard.c
+index ef82dbe..a42b388 100644
+--- a/src/frdp-channel-clipboard.c
++++ b/src/frdp-channel-clipboard.c
+@@ -210,7 +210,9 @@ frdp_channel_clipboard_finalize (GObject *object)
+   fuse_session_unmount (priv->fuse_session);
+   fuse_session_exit (priv->fuse_session);
+ 
+-  _gtk_clipboard_clear_func (priv->gtk_clipboard, self);
++  if (priv->remote_data_in_clipboard)
++    gtk_clipboard_clear (priv->gtk_clipboard);
++
+   g_clear_pointer (&priv->fuse_directory, g_free);
+ 
+   g_mutex_lock (&priv->lock_mutex);
+-- 
+2.47.1
+

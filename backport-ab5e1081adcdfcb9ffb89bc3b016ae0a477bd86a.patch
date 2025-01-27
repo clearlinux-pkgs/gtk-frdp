@@ -1,0 +1,25 @@
+From ab5e1081adcdfcb9ffb89bc3b016ae0a477bd86a Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Thu, 3 Nov 2022 17:35:35 +0100
+Subject: [PATCH] frdp-session: Include cmdline.h
+
+This is needed for freerdp_client_load_addins().
+---
+ src/frdp-session.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 538ac7f..fba7b7a 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -22,6 +22,7 @@
+ #include <freerdp/freerdp.h>
+ #include <freerdp/gdi/gdi.h>
+ #include <freerdp/client/channels.h>
++#include <freerdp/client/cmdline.h>
+ #include <gdk/gdk.h>
+ #include <gio/gio.h>
+ #include <gtk/gtk.h>
+-- 
+2.47.1
+

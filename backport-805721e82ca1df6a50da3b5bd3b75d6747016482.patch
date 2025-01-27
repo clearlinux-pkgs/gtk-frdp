@@ -1,0 +1,29 @@
+From 805721e82ca1df6a50da3b5bd3b75d6747016482 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Mon, 26 Oct 2020 17:22:17 +0100
+Subject: [PATCH] frdp-session: Allow unanounced orders from server
+
+This enables "relax order checks" overriding the preferred redirection
+order /relax-order-checks do not check if a RDP order was announced
+during capability exchange, only use when connecting to a buggy server.
+
+https://github.com/neutrinolabs/xrdp/issues/1266
+---
+ src/frdp-session.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 0cba60e..a6985c7 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -564,6 +564,7 @@ frdp_session_init_freerdp (FrdpSession *self)
+   settings->Password = g_strdup (priv->password);
+ 
+   settings->AllowFontSmoothing = TRUE;
++  settings->AllowUnanouncedOrdersFromServer = TRUE;
+ }
+ 
+ static void
+-- 
+2.47.1
+

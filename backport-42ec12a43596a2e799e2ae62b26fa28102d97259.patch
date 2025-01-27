@@ -1,0 +1,43 @@
+From 42ec12a43596a2e799e2ae62b26fa28102d97259 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 13:55:01 +0200
+Subject: [PATCH] frdp-session: Get properties from right places
+
+The properties were not acquired from the right places
+as a result of a rewrite.
+---
+ src/frdp-session.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ee3f7d0..f242e1c 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -1095,19 +1095,19 @@ frdp_session_get_property (GObject    *object,
+   switch (property_id)
+     {
+       case PROP_HOSTNAME:
+-        g_value_set_string (value, settings->ServerHostname);
++        g_value_set_string (value, self->priv->hostname);
+         break;
+       case PROP_PORT:
+-        g_value_set_uint (value, settings->ServerPort);
++        g_value_set_uint (value, self->priv->port);
+         break;
+       case PROP_USERNAME:
+-        g_value_set_string (value, settings->Username);
++        g_value_set_string (value, self->priv->username);
+         break;
+       case PROP_PASSWORD:
+-        g_value_set_string (value, settings->Password);
++        g_value_set_string (value, self->priv->password);
+         break;
+       case PROP_DOMAIN:
+-        g_value_set_string (value, settings->Domain);
++        g_value_set_string (value, self->priv->domain);
+         break;
+       case PROP_DISPLAY:
+         g_value_set_object (value, self->priv->display);
+-- 
+2.47.1
+

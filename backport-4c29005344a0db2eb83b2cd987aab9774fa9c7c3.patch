@@ -1,0 +1,24 @@
+From 4c29005344a0db2eb83b2cd987aab9774fa9c7c3 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Tue, 24 Aug 2021 15:11:08 +0200
+Subject: [PATCH] frdp-session: Don't throw rdp-auth-failure on TRANSPORT_ERROR
+
+---
+ src/frdp-session.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index cb62495..f0637af 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -652,7 +652,6 @@ frdp_session_connect_thread (GTask        *task,
+         case FREERDP_ERROR_CONNECT_NO_OR_MISSING_CREDENTIALS:
+         case STATUS_LOGON_FAILURE:
+         case FREERDP_ERROR_CONNECT_TRANSPORT_FAILED:
+-        case ERRCONNECT_CONNECT_TRANSPORT_FAILED:
+             g_signal_emit (self,
+                            signals[RDP_AUTH_FAILURE], 0,
+                            freerdp_get_last_error_string (error_code));
+-- 
+2.47.1
+

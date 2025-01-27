@@ -1,0 +1,101 @@
+From d20600878d10ed50aa8025790347eee8c073e3d0 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Mon, 12 Jul 2021 15:51:04 +0200
+Subject: [PATCH] Add Flatpak manifest
+
+This allows us to build a bundled freerdp version and run the example
+app in a isolated/contained flatpak container.
+
+This should make the development experience of this library much
+easier, in line with how GNOME apps are developed.
+---
+ org.gnome.GtkFrdpViewer.json | 77 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 77 insertions(+)
+ create mode 100644 org.gnome.GtkFrdpViewer.json
+
+diff --git a/org.gnome.GtkFrdpViewer.json b/org.gnome.GtkFrdpViewer.json
+new file mode 100644
+index 0000000..2acdaa9
+--- /dev/null
++++ b/org.gnome.GtkFrdpViewer.json
+@@ -0,0 +1,77 @@
++{
++    "app-id": "org.gnome.GtkFrdpViewer",
++    "runtime": "org.gnome.Platform",
++    "runtime-version": "master",
++    "sdk": "org.gnome.Sdk",
++    "command": "gtk-frdp-viewer",
++    "finish-args": [
++        "--share=network",
++        "--share=ipc",
++        "--socket=fallback-x11",
++        "--socket=wayland"
++    ],
++    "cleanup": [
++        "/include",
++        "/lib/pkgconfig",
++        "/man",
++        "/share/doc",
++        "/share/gtk-doc",
++        "/share/man",
++        "/share/pkgconfig",
++        "/share/vala",
++        "*.la",
++        "*.a"
++    ],
++    "modules": [
++        {
++            "name" : "libusb",
++            "config-opts" : [
++                "--disable-udev"
++            ],
++            "sources" : [
++                {
++                    "type" : "archive",
++                    "url" : "https://github.com/libusb/libusb/releases/download/v1.0.23/libusb-1.0.23.tar.bz2",
++                    "sha256" : "db11c06e958a82dac52cf3c65cb4dd2c3f339c8a988665110e0d24d19312ad8d"
++                }
++            ]
++        },
++        {
++            "name" : "freerdp",
++            "buildsystem": "cmake-ninja",
++            "builddir": true,
++            "config-opts": [
++                "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
++                "-DWITH_OPENH264=ON",
++                "-DCMAKE_INSTALL_PREFIX=/app",
++                "-DCMAKE_INSTALL_LIBDIR=lib",
++                "-DWITH_WAYLAND:BOOL=ON",
++                "-DCHANNEL_TSMF:BOOL=ON",
++                "-DWITH_FFMPEG:BOOL=ON",
++                "-DWITH_MANPAGES:BOOL=OFF",
++                "-DWITH_SERVER:BOOL=OFF"
++            ],
++            "sources" : [
++                {
++                    "type" : "archive",
++                    "url" : "https://pub.freerdp.com/releases/freerdp-2.3.2.tar.gz",
++                    "sha256" : "deb888034a441c7f76dc8b3ddea67fac3c0d815739fc2146e1243480ce56c91c"
++                }
++            ]
++        },
++        {
++            "name" : "gtk-frdp",
++            "config-opts" : [
++                "--libdir=/app/lib",
++                "-Dexamples=true"
++            ],
++            "buildsystem" : "meson",
++            "sources" : [
++                {
++                    "type" : "git",
++                    "url" : "https://gitlab.gnome.org/gnome/gtk-frdp.git"
++                }
++            ]
++        }
++    ]
++}
+-- 
+2.47.1
+

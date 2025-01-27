@@ -1,0 +1,27 @@
+From dbbff16cb127c501a2055b345de87a49639a9ca6 Mon Sep 17 00:00:00 2001
+From: Manuel Wassermann <manuel.wassermann97@gmail.com>
+Date: Tue, 22 Nov 2022 10:05:20 +0100
+Subject: [PATCH] build: Bump meson version to 0.50.0
+
+Fixes a warning about the usage of a future feature.
+The 'install' argument for 'configure_file' is only available since version 0.50.0.
+---
+ meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index d992c80..9d811e5 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1,7 +1,7 @@
+ project('gtk-frdp',
+   ['c', 'vala'],
+   version: '0.2.0',
+-  meson_version: '>= 0.40.0',
++  meson_version: '>= 0.50.0',
+ )
+ 
+ 
+-- 
+2.47.1
+

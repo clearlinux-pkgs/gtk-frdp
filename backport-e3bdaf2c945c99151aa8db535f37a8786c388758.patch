@@ -1,0 +1,30 @@
+From e3bdaf2c945c99151aa8db535f37a8786c388758 Mon Sep 17 00:00:00 2001
+From: Jason Gerecke <killertofu@gmail.com>
+Date: Fri, 26 Jan 2024 14:52:18 -0800
+Subject: [PATCH] clipboard: Do not attempt to process empty clipboard data
+
+If there is no data in the selection there is nothing for us to send. Do
+not try to process the data, lest we tickle code that expects to be fed
+valid data.
+
+Fixes: #43
+---
+ src/frdp-channel-clipboard.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/frdp-channel-clipboard.c b/src/frdp-channel-clipboard.c
+index a01614d..2723c2d 100644
+--- a/src/frdp-channel-clipboard.c
++++ b/src/frdp-channel-clipboard.c
+@@ -1382,7 +1382,7 @@ clipboard_content_received (GtkClipboard     *clipboard,
+   length = gtk_selection_data_get_length (selection_data);
+   data_type = gtk_selection_data_get_data_type (selection_data);
+ 
+-  if (length >= 0) {
++  if (length > 0) {
+     if (data_type == gdk_atom_intern ("UTF8_STRING", FALSE)) {
+       text = gtk_selection_data_get_text (selection_data);
+       text_length = strlen ((gchar *) text);
+-- 
+2.47.1
+

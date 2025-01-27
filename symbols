@@ -3,6 +3,11 @@ libgtk-frdp-0.2.so:frdp_channel_display_control_get_type
 libgtk-frdp-0.2.so:frdp_channel_display_control_resize_display
 libgtk-frdp-0.2.so:frdp_channel_get_type
 libgtk-frdp-0.2.so:frdp_display_authenticate
+libgtk-frdp-0.2.so:frdp_display_authenticate_finish
+libgtk-frdp-0.2.so:frdp_display_certificate_change_verify_ex
+libgtk-frdp-0.2.so:frdp_display_certificate_change_verify_ex_finish
+libgtk-frdp-0.2.so:frdp_display_certificate_verify_ex
+libgtk-frdp-0.2.so:frdp_display_certificate_verify_ex_finish
 libgtk-frdp-0.2.so:frdp_display_close
 libgtk-frdp-0.2.so:frdp_display_get_pixbuf
 libgtk-frdp-0.2.so:frdp_display_get_type
@@ -18,5 +23,6 @@ libgtk-frdp-0.2.so:frdp_session_get_type
 libgtk-frdp-0.2.so:frdp_session_is_open
 libgtk-frdp-0.2.so:frdp_session_mouse_event
 libgtk-frdp-0.2.so:frdp_session_mouse_pointer
+libgtk-frdp-0.2.so:frdp_session_mouse_smooth_scroll_event
 libgtk-frdp-0.2.so:frdp_session_new
 libgtk-frdp-0.2.so:frdp_session_send_key

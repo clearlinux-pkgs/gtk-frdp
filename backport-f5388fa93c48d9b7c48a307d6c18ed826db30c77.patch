@@ -1,0 +1,29 @@
+From f5388fa93c48d9b7c48a307d6c18ed826db30c77 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Fri, 1 Apr 2022 12:58:53 +0200
+Subject: [PATCH] frdp-session: Don't bail out in all event handle errors
+
+---
+ src/frdp-session.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index abb322d..dc89e5f 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -602,8 +602,11 @@ update (gpointer user_data)
+     return FALSE;
+ 
+   if (!freerdp_check_event_handles (priv->freerdp_session->context)) {
++    if (freerdp_get_last_error(priv->freerdp_session->context) == FREERDP_ERROR_SUCCESS) {
+       g_warning ("Failed to check FreeRDP file descriptor");
+-      return FALSE;
++    }
++
++    return TRUE;
+   }
+ 
+   if (freerdp_shall_disconnect (priv->freerdp_session)) {
+-- 
+2.47.1
+

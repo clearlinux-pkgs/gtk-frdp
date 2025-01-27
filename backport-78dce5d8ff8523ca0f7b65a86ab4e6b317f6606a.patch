@@ -1,0 +1,35 @@
+From 78dce5d8ff8523ca0f7b65a86ab4e6b317f6606a Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Mon, 14 Nov 2022 11:43:50 +0100
+Subject: [PATCH] frdp-session: Fix warnings
+
+Fix some warnings in frdp-session.c.
+---
+ src/frdp-session.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ee7524a..68f28c7 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -216,7 +216,7 @@ frdp_session_configure_event (GtkWidget *widget,
+ {
+   FrdpSession *self = (FrdpSession*) user_data;
+   FrdpSessionPrivate *priv = self->priv;
+-  GtkScrolledWindow *scrolled;
++  GtkWidget *scrolled;
+   rdpSettings *settings;
+   rdpGdi *gdi;
+   double width, height, widget_ratio, server_ratio;
+@@ -282,7 +282,7 @@ frdp_session_draw (GtkWidget *widget,
+   cairo_set_source_surface (cr, self->priv->surface, 0, 0);
+   cairo_paint (cr);
+ 
+-  frdp_display_set_scaling (self->priv->display, self->priv->scaling);
++  frdp_display_set_scaling (FRDP_DISPLAY (self->priv->display), self->priv->scaling);
+ 
+   return TRUE;
+ }
+-- 
+2.47.1
+

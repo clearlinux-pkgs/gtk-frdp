@@ -1,0 +1,404 @@
+From 8fed58a28edd36923d677a2eb4412919a24f5532 Mon Sep 17 00:00:00 2001
+From: akallabeth <akallabeth@posteo.net>
+Date: Fri, 18 Jan 2019 22:52:24 +0100
+Subject: [PATCH] Implemented RDP channel support
+
+Fixes #14: Basic RDP channel support for modern graphics pipeline
+and video redirection support added.
+---
+ src/frdp-channels.c | 119 ++++++++++++++++++++++++++++++++++++++++++++
+ src/frdp-channels.h |  39 +++++++++++++++
+ src/frdp-context.h  |  35 +++++++++++++
+ src/frdp-session.c  |  75 ++++++++++++++++++++++++----
+ src/meson.build     |   5 +-
+ 5 files changed, 263 insertions(+), 10 deletions(-)
+ create mode 100644 src/frdp-channels.c
+ create mode 100644 src/frdp-channels.h
+ create mode 100644 src/frdp-context.h
+
+diff --git a/src/frdp-channels.c b/src/frdp-channels.c
+new file mode 100644
+index 0000000..74e8d69
+--- /dev/null
++++ b/src/frdp-channels.c
+@@ -0,0 +1,119 @@
++/* frdp-channels.c
++ *
++ * Copyright (C) 2019 Armin Novak <akallabeth@posteo.net>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <freerdp/gdi/video.h>
++#include <freerdp/gdi/gfx.h>
++
++#include "frdp-channels.h"
++#include "frdp-context.h"
++
++void frdp_OnChannelConnectedEventHandler(void* context, ChannelConnectedEventArgs* e)
++{
++	frdpContext* ctx = (frdpContext*) context;
++
++	if (strcmp(e->name, RDPEI_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Touch input redirection
++	}
++  else if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Display resize channel
++	}
++	else if (strcmp(e->name, TSMF_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Old windows 7 multimedia redirection
++	}
++	else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_graphics_pipeline_init(ctx->context.gdi, (RdpgfxClientContext*) e->pInterface);
++	}
++	else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Remote application
++	}
++	else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Clipboard redirection channel
++	}
++	else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Multiparty channel
++	}
++	else if (strcmp(e->name, GEOMETRY_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_geometry_init(ctx->context.gdi, (GeometryClientContext*)e->pInterface);
++	}
++	else if (strcmp(e->name, VIDEO_CONTROL_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_control_init(ctx->context.gdi, (VideoClientContext*)e->pInterface);
++	}
++	else if (strcmp(e->name, VIDEO_DATA_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_data_init(ctx->context.gdi, (VideoClientContext*)e->pInterface);
++	}
++}
++
++void frdp_OnChannelDisconnectedEventHandler(void* context, ChannelDisconnectedEventArgs* e)
++{
++	frdpContext* ctx = (frdpContext*) context;
++
++	if (strcmp(e->name, RDPEI_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Touch input redirection
++	}
++	else if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Display resize channel
++	}
++	else if (strcmp(e->name, TSMF_DVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Old windows 7 multimedia redirection
++	}
++	else if (strcmp(e->name, RDPGFX_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_graphics_pipeline_uninit(ctx->context.gdi, (RdpgfxClientContext*) e->pInterface);
++	}
++	else if (strcmp(e->name, RAIL_SVC_CHANNEL_NAME) == 0)
++	{
++    // TODO Remote application
++	}
++	else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Clipboard redirection channel
++	}
++	else if (strcmp(e->name, ENCOMSP_SVC_CHANNEL_NAME) == 0)
++	{
++		// TODO Multiparty channel
++	}
++	else if (strcmp(e->name, GEOMETRY_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_geometry_uninit(ctx->context.gdi, (GeometryClientContext*)e->pInterface);
++	}
++	else if (strcmp(e->name, VIDEO_CONTROL_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_control_uninit(ctx->context.gdi, (VideoClientContext*)e->pInterface);
++	}
++	else if (strcmp(e->name, VIDEO_DATA_DVC_CHANNEL_NAME) == 0)
++	{
++		gdi_video_data_uninit(ctx->context.gdi, (VideoClientContext*)e->pInterface);
++	}
++}
+diff --git a/src/frdp-channels.h b/src/frdp-channels.h
+new file mode 100644
+index 0000000..bb3b950
+--- /dev/null
++++ b/src/frdp-channels.h
+@@ -0,0 +1,39 @@
++/* frdp-channels.h
++ *
++ * Copyright (C) 2019 Armin Novak <akallabeth@posteo.net>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <freerdp/freerdp.h>
++#include <freerdp/client/channels.h>
++#include <freerdp/client/rdpei.h>
++#include <freerdp/client/tsmf.h>
++#include <freerdp/client/rail.h>
++#include <freerdp/client/cliprdr.h>
++#include <freerdp/client/rdpgfx.h>
++#include <freerdp/client/encomsp.h>
++#include <freerdp/client/disp.h>
++#include <freerdp/client/geometry.h>
++#include <freerdp/client/video.h>
++#include <gtk/gtk.h>
++
++G_BEGIN_DECLS
++
++void frdp_OnChannelConnectedEventHandler(void* context, ChannelConnectedEventArgs* e);
++void frdp_OnChannelDisconnectedEventHandler(void* context, ChannelDisconnectedEventArgs* e);
++
++G_END_DECLS
+diff --git a/src/frdp-context.h b/src/frdp-context.h
+new file mode 100644
+index 0000000..ec7c95e
+--- /dev/null
++++ b/src/frdp-context.h
+@@ -0,0 +1,35 @@
++/* frdp-context.h
++ *
++ * Copyright (C) 2019 Armin Novak <akallabeth@posteo.net>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <freerdp/freerdp.h>
++#include <gtk/gtk.h>
++
++G_BEGIN_DECLS
++
++typedef struct _FrdpSession FrdpSession;
++
++struct frdp_context
++{
++  rdpContext context;
++  FrdpSession *self;
++};
++typedef struct frdp_context frdpContext;
++
++G_END_DECLS
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 643862d..0bdbd02 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -19,12 +19,15 @@
+ #include <errno.h>
+ #include <freerdp/freerdp.h>
+ #include <freerdp/gdi/gdi.h>
++#include <freerdp/client/channels.h>
+ #include <gdk/gdk.h>
+ #include <gio/gio.h>
+ #include <gtk/gtk.h>
+ #include <math.h>
+ 
+ #include "frdp-session.h"
++#include "frdp-context.h"
++#include "frdp-channels.h"
+ 
+ #define SELECT_TIMEOUT 50
+ #define FRDP_CONNECTION_THREAD_MAX_ERRORS 10
+@@ -83,13 +86,6 @@ enum
+ 
+ static guint signals[LAST_SIGNAL];
+ 
+-struct frdp_context
+-{
+-  rdpContext context;
+-  FrdpSession *self;
+-};
+-typedef struct frdp_context frdpContext;
+-
+ static void
+ frdp_session_update_mouse_pointer (FrdpSession  *self)
+ {
+@@ -388,6 +384,43 @@ frdp_authenticate (freerdp  *freerdp_session,
+ static gboolean
+ frdp_pre_connect (freerdp *freerdp_session)
+ {
++  rdpSettings *settings = freerdp_session->settings;
++  rdpContext *context = freerdp_session->context;
++
++  settings->OrderSupport[NEG_DSTBLT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_PATBLT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_SCRBLT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_OPAQUE_RECT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_DRAWNINEGRID_INDEX] = FALSE;
++  settings->OrderSupport[NEG_MULTIDSTBLT_INDEX] = FALSE;
++  settings->OrderSupport[NEG_MULTIPATBLT_INDEX] = FALSE;
++  settings->OrderSupport[NEG_MULTISCRBLT_INDEX] = FALSE;
++  settings->OrderSupport[NEG_MULTIOPAQUERECT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_MULTI_DRAWNINEGRID_INDEX] = FALSE;
++  settings->OrderSupport[NEG_LINETO_INDEX] = TRUE;
++  settings->OrderSupport[NEG_POLYLINE_INDEX] = TRUE;
++  settings->OrderSupport[NEG_MEMBLT_INDEX] = TRUE;
++  settings->OrderSupport[NEG_MEM3BLT_INDEX] = FALSE;
++  settings->OrderSupport[NEG_MEMBLT_V2_INDEX] = TRUE;
++  settings->OrderSupport[NEG_MEM3BLT_V2_INDEX] = FALSE;
++  settings->OrderSupport[NEG_SAVEBITMAP_INDEX] = FALSE;
++  settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
++  settings->OrderSupport[NEG_FAST_INDEX_INDEX] = TRUE;
++  settings->OrderSupport[NEG_FAST_GLYPH_INDEX] = FALSE;
++  settings->OrderSupport[NEG_POLYGON_SC_INDEX] = FALSE;
++  settings->OrderSupport[NEG_POLYGON_CB_INDEX] = FALSE;
++  settings->OrderSupport[NEG_ELLIPSE_SC_INDEX] = FALSE;
++  settings->OrderSupport[NEG_ELLIPSE_CB_INDEX] = FALSE;
++
++  PubSub_SubscribeChannelConnected(context->pubSub,
++	                                 frdp_OnChannelConnectedEventHandler);
++	PubSub_SubscribeChannelDisconnected(context->pubSub,
++	                                    frdp_OnChannelDisconnectedEventHandler);
++
++  if (!freerdp_client_load_addins(context->channels,
++	                                settings))
++		return FALSE;
++
+   return TRUE;
+ }
+ 
+@@ -439,12 +472,17 @@ frdp_end_paint (rdpContext *context)
+ static gboolean
+ frdp_post_connect (freerdp *freerdp_session)
+ {
++  rdpSettings *settings;
++  rdpContext *context;
+   FrdpSession *self = ((frdpContext *) freerdp_session->context)->self;
+   cairo_format_t cairo_format;
+   rdpGdi *gdi;
+   guint32 color_format;
+   gint stride;
++  ResizeWindowEventArgs e;
+ 
++  context = freerdp_session->context;
++  settings = context->settings;
+   switch (frdp_session_get_best_color_depth (self)) {
+     case 32:
+       color_format = PIXEL_FORMAT_BGRA32;
+@@ -487,9 +525,29 @@ frdp_post_connect (freerdp *freerdp_session)
+                               gdi->width,
+                               gdi->height);
+ 
++  EventArgsInit(&e, "frdp");
++	e.width = settings->DesktopWidth;
++	e.height = settings->DesktopHeight;
++	PubSub_OnResizeWindow(context->pubSub, freerdp_session->context, &e);
++
+   return TRUE;
+ }
+ 
++static void frdp_post_disconnect(freerdp* instance)
++{
++	rdpContext* context;
++
++	if (!instance || !instance->context)
++		return;
++
++	context = instance->context;
++	PubSub_UnsubscribeChannelConnected(context->pubSub,
++	                                   frdp_OnChannelConnectedEventHandler);
++	PubSub_UnsubscribeChannelDisconnected(context->pubSub,
++	                                      frdp_OnChannelDisconnectedEventHandler);
++	gdi_free(instance);
++}
++
+ static gboolean
+ idle_close (gpointer user_data)
+ {
+@@ -548,6 +606,7 @@ frdp_session_init_freerdp (FrdpSession *self)
+   priv->freerdp_session = freerdp_new ();
+   priv->freerdp_session->PreConnect = frdp_pre_connect;
+   priv->freerdp_session->PostConnect = frdp_post_connect;
++  priv->freerdp_session->PostDisconnect = frdp_post_disconnect;
+   priv->freerdp_session->Authenticate = frdp_authenticate;
+   priv->freerdp_session->VerifyCertificate = frdp_certificate_verify;
+   priv->freerdp_session->VerifyChangedCertificate = frdp_changed_certificate_verify;
+@@ -845,8 +904,6 @@ frdp_session_close (FrdpSession *self)
+   }
+ 
+   if (self->priv->freerdp_session != NULL) {
+-    gdi_free (self->priv->freerdp_session);
+-
+     self->priv->is_connected = FALSE;
+ 
+     g_debug ("Closing RDP session");
+diff --git a/src/meson.build b/src/meson.build
+index acecc39..4974ce4 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -2,12 +2,15 @@ api_version = '0.1'
+ 
+ gtk_frdp_sources = [
+   'frdp-display.c',
++  'frdp-channels.c',
+   'frdp-session.c',
+ ]
+ 
+ gtk_frdp_headers = [
+   'frdp-display.h',
++  'frdp-channels.h',
+   'frdp-session.h',
++  'frdp-context.h',
+   'gtk-frdp.h',
+ ]
+ 
+@@ -40,7 +43,7 @@ gtk_frdp_deps = [
+   # The 2.0.0-rc4 version is needed at least, but there is no easy way to detect this.
+   dependency('winpr2', version: '>= 2.0.0'),
+   dependency('freerdp2', version: '>= 2.0.0'),
+-
++  dependency('freerdp-client2'),
+   dependency('gio-2.0', version: '>= 2.50'),
+   dependency('gtk+-3.0'),
+   cc.find_library('m'),
+-- 
+2.47.1
+

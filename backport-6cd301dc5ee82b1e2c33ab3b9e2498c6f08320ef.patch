@@ -1,0 +1,25 @@
+From 6cd301dc5ee82b1e2c33ab3b9e2498c6f08320ef Mon Sep 17 00:00:00 2001
+From: Martin Blanchard <tchaik@gmx.com>
+Date: Tue, 7 Jul 2020 23:23:07 +0200
+Subject: [PATCH] frdp-session: Fix cairo_surface_t double free
+
+Fixes: https://gitlab.gnome.org/GNOME/gtk-frdp/-/issues/23
+---
+ src/frdp-session.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 2673953..0cba60e 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -114,7 +114,6 @@ frdp_session_update_mouse_pointer (FrdpSession  *self)
+     cursor =  gdk_cursor_new_from_surface (display, surface, 0, 0);
+     cairo_surface_destroy (surface);
+     cairo_destroy (cairo);
+-    cairo_surface_destroy (surface);
+   } else if (!priv->show_cursor || !priv->cursor)
+       /* No cursor set or none to show */
+     cursor = gdk_cursor_new_from_name (display, "default");
+-- 
+2.47.1
+

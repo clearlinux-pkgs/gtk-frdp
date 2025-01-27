@@ -1,0 +1,25 @@
+From bca7f1cd0c8dde4a4079041d81181e7e1a284966 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Wed, 30 Mar 2022 10:50:36 +0200
+Subject: [PATCH] frdp-session: Fix double free causing crash
+
+freerdp_free implicitly frees the frdp-session->context object.
+---
+ src/frdp-session.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 5c95737..62568f0 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -563,7 +563,6 @@ idle_close (gpointer user_data)
+ 
+   if (self->priv->freerdp_session != NULL) {
+     freerdp_disconnect (self->priv->freerdp_session);
+-    freerdp_context_free (self->priv->freerdp_session);
+     g_clear_pointer (&self->priv->freerdp_session, freerdp_free);
+   }
+ 
+-- 
+2.47.1
+

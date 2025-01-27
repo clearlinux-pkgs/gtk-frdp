@@ -1,0 +1,133 @@
+From 02f130ef4a5963605a5de0aaa4b3ebb7b4aa4ee9 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Fri, 6 Aug 2021 09:44:50 +0200
+Subject: [PATCH] frdp-display: Add "rdp-auth-failure" signal
+
+---
+ examples/gtk-frdp-viewer.c | 15 +++++++++++++++
+ src/frdp-display.c         | 18 ++++++++++++++++++
+ src/frdp-session.c         | 11 +++++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/examples/gtk-frdp-viewer.c b/examples/gtk-frdp-viewer.c
+index 12f5925..0211203 100644
+--- a/examples/gtk-frdp-viewer.c
++++ b/examples/gtk-frdp-viewer.c
+@@ -18,6 +18,16 @@
+ 
+ #include <gtk-frdp.h>
+ 
++static void
++on_rdp_auth_failure (GObject     *source_object,
++                     const gchar *message,
++                     gpointer     user_data)
++{
++  g_print ("-> %s\n", message);
++
++  g_application_quit (user_data);
++}
++
+ static void
+ on_activate (GtkApplication *app)
+ {
+@@ -35,6 +45,11 @@ on_activate (GtkApplication *app)
+ 
+   display = frdp_display_new ();
+ 
++  g_signal_connect (display,
++                    "rdp-auth-failure",
++                    G_CALLBACK (on_rdp_auth_failure),
++                    app);
++
+   gtk_container_add (GTK_CONTAINER (window), display);
+   gtk_widget_show (display);
+ 
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index a04b879..05d856f 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -40,6 +40,7 @@ enum
+   RDP_CONNECTED,
+   RDP_DISCONNECTED,
+   RDP_NEEDS_AUTHENTICATION,
++  RDP_AUTH_FAILURE,
+   LAST_SIGNAL
+ };
+ 
+@@ -219,6 +220,14 @@ frdp_leave_notify_event (GtkWidget	       *widget,
+   return TRUE;
+ }
+ 
++static void
++frdp_display_auth_failure (GObject     *source_object,
++                           const gchar *message,
++                           gpointer     user_data)
++{
++  g_signal_emit (user_data, signals[RDP_AUTH_FAILURE], 0, message);
++}
++
+ static void
+ frdp_display_disconnected (GObject  *source_object,
+                            gpointer  user_data)
+@@ -374,6 +383,12 @@ frdp_display_class_init (FrdpDisplayClass *klass)
+                                                     G_SIGNAL_RUN_LAST,
+                                                     0, NULL, NULL, NULL,
+                                                     G_TYPE_NONE, 0);
++  signals[RDP_AUTH_FAILURE] = g_signal_new ("rdp-auth-failure",
++                                            G_TYPE_FROM_CLASS (klass),
++                                            G_SIGNAL_RUN_LAST,
++                                            0, NULL, NULL, NULL,
++                                            G_TYPE_NONE, 1,
++                                            G_TYPE_STRING);
+ }
+ 
+ static void
+@@ -417,6 +432,9 @@ frdp_display_open_host (FrdpDisplay  *display,
+   g_signal_connect (priv->session, "rdp-disconnected",
+                     G_CALLBACK (frdp_display_disconnected),
+                     display);
++  g_signal_connect (priv->session, "rdp-auth-failure",
++                    G_CALLBACK (frdp_display_auth_failure),
++                    display);
+ 
+   frdp_session_connect (priv->session,
+                         host,
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index a1c959e..da5a2d6 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -81,6 +81,7 @@ enum
+ {
+   RDP_CONNECTED,
+   RDP_DISCONNECTED,
++  RDP_AUTH_FAILURE,
+   LAST_SIGNAL
+ };
+ 
+@@ -652,6 +653,10 @@ frdp_session_connect_thread (GTask        *task,
+         case STATUS_LOGON_FAILURE:
+         case FREERDP_ERROR_CONNECT_TRANSPORT_FAILED:
+         case ERRCONNECT_CONNECT_TRANSPORT_FAILED:
++            g_signal_emit (self,
++                           signals[RDP_AUTH_FAILURE], 0,
++                           freerdp_get_last_error_string (error_code));
++
+             g_warning ("Failed to connect RPD host with error '%s'",
+                        freerdp_get_last_error_string (error_code));
+             break;
+@@ -835,6 +840,12 @@ frdp_session_class_init (FrdpSessionClass *klass)
+                                             G_SIGNAL_RUN_FIRST,
+                                             0, NULL, NULL, NULL,
+                                             G_TYPE_NONE, 0);
++  signals[RDP_AUTH_FAILURE] = g_signal_new ("rdp-auth-failure",
++                                            FRDP_TYPE_SESSION,
++                                            G_SIGNAL_RUN_FIRST,
++                                            0, NULL, NULL, NULL,
++                                            G_TYPE_NONE, 1,
++                                            G_TYPE_STRING);
+ 
+ }
+ 
+-- 
+2.47.1
+

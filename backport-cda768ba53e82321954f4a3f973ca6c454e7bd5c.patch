@@ -1,0 +1,45 @@
+From cda768ba53e82321954f4a3f973ca6c454e7bd5c Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Mon, 12 Jul 2021 15:44:34 +0200
+Subject: [PATCH] build: Make "examples" build optional
+
+Now the default option is to NOT build the examples.
+---
+ meson.build       |  5 +++--
+ meson_options.txt | 12 ++++++++----
+ 2 files changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/meson.build b/meson.build
+index 3beda3f..7f94529 100644
+--- a/meson.build
++++ b/meson.build
+@@ -28,6 +28,7 @@ endif
+ gnome = import('gnome')
+ 
+ subdir('src')
+-subdir('examples')
+-
+ 
++if get_option('examples')
++  subdir('examples')
++endif
+diff --git a/meson_options.txt b/meson_options.txt
+index eef0c94..903cda7 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -1,4 +1,8 @@
+-# Subproject
+-option('package_subdir', type: 'string',
+-  description: 'Subdirectory to append to all installed files, for use as subproject'
+-)
++option ('examples',
++        type: 'boolean',
++        value: false,
++        description: 'Whether to build and install the example/demo app')
++
++option ('package_subdir',
++        type: 'string',
++        description: 'Subdir for when gtk-frdp is consumed as a subproject')
+-- 
+2.47.1
+

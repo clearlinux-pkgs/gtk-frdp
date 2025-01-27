@@ -1,0 +1,26 @@
+From 9c1ff15c31e74b8fb0bee93d2bc57507bcf37e98 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 11:28:43 +0200
+Subject: [PATCH] clipboard: Wait until fuse-session thread is finished
+
+Wait for the thread to be finished before clearing fuse's mutex.
+Otherwise we risk use of cleared/uninitialized mutex.
+---
+ src/frdp-channel-clipboard.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/frdp-channel-clipboard.c b/src/frdp-channel-clipboard.c
+index a42b388..5ff69ce 100644
+--- a/src/frdp-channel-clipboard.c
++++ b/src/frdp-channel-clipboard.c
+@@ -222,6 +222,7 @@ frdp_channel_clipboard_finalize (GObject *object)
+ 
+   g_mutex_unlock (&priv->lock_mutex);
+ 
++  g_thread_join (priv->fuse_session_thread);
+   g_mutex_clear (&priv->fuse_mutex);
+   g_mutex_clear (&priv->lock_mutex);
+ 
+-- 
+2.47.1
+

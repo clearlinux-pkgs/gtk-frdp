@@ -1,0 +1,55 @@
+From 95d0b96f326ad0253afff427541314b444babe29 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 12:08:27 +0200
+Subject: [PATCH] Disconnect handlers on disconnection
+
+These are connected during connection so we need to disconnect them
+for the case when session is kept around between connections.
+---
+ src/frdp-display.c | 5 +++++
+ src/frdp-session.c | 9 ++++++++-
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index b880df2..1e4b8d0 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -240,6 +240,11 @@ frdp_display_disconnected (GObject  *source_object,
+                            gpointer  user_data)
+ {
+   FrdpDisplay *self = FRDP_DISPLAY (user_data);
++  FrdpDisplayPrivate *priv = frdp_display_get_instance_private (self);
++
++  g_signal_handlers_disconnect_by_func (priv->session, G_CALLBACK (frdp_display_error), self);
++  g_signal_handlers_disconnect_by_func (priv->session, G_CALLBACK (frdp_display_disconnected), self);
++  g_signal_handlers_disconnect_by_func (priv->session, G_CALLBACK (frdp_display_auth_failure), self);
+ 
+   g_signal_emit (self, signals[RDP_DISCONNECTED], 0);
+ 
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index af71ba3..ee3f7d0 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -660,11 +660,18 @@ frdp_post_connect (freerdp *freerdp_session)
+ static void
+ frdp_post_disconnect (freerdp *instance)
+ {
+-  rdpContext *context;
++  FrdpSession *self;
++  rdpContext  *context;
+ 
+   if (!instance || !instance->context)
+     return;
+ 
++  self = ((frdpContext *) instance->context)->self;
++
++  g_signal_handlers_disconnect_by_func (self->priv->display, G_CALLBACK (frdp_session_draw), self);
++  g_signal_handlers_disconnect_by_func (self->priv->display, G_CALLBACK (frdp_session_configure_event), self);
++  g_signal_handlers_disconnect_by_func (self->priv->display, G_CALLBACK (frdp_session_resize_supported_changed), self);
++
+   context = instance->context;
+   PubSub_UnsubscribeChannelConnected (context->pubSub,
+                                       frdp_on_channel_connected_event_handler);
+-- 
+2.47.1
+

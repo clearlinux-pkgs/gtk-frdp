@@ -1,0 +1,45 @@
+From 709e6c952c96c740135424e66fdf300f69ceb67a Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Fri, 4 Nov 2022 14:25:18 +0100
+Subject: [PATCH] frdp-session: Advertise support for h264 and AVC444
+
+Advertise support for H.264 and AVC444 if curent FreeRDP
+was compiled with support for H.264.
+---
+ src/frdp-session.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ebc4c0e..1b9002a 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -542,7 +542,8 @@ static void
+ frdp_session_init_freerdp (FrdpSession *self)
+ {
+   FrdpSessionPrivate *priv = self->priv;
+-  rdpSettings *settings;
++  rdpSettings        *settings;
++  gchar              *build_options;
+ 
+   /* Setup FreeRDP session */
+   priv->freerdp_session = freerdp_new ();
+@@ -586,6 +587,16 @@ frdp_session_init_freerdp (FrdpSession *self)
+   settings->RedirectClipboard = FALSE;
+   settings->SupportGraphicsPipeline = TRUE;
+ 
++  build_options = g_ascii_strup (freerdp_get_build_config (), -1);
++  if (g_strrstr (build_options, "WITH_GFX_H264=ON") != NULL) {
++    settings->GfxH264 = TRUE;
++    settings->GfxAVC444 = TRUE;
++  } else {
++    settings->GfxH264 = FALSE;
++    settings->GfxAVC444 = FALSE;
++  }
++  g_free (build_options);
++
+   settings->KeyboardLayout = freerdp_keyboard_init (0);
+ 
+   freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
+-- 
+2.47.1
+

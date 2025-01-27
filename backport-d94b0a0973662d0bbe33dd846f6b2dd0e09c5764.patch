@@ -1,0 +1,647 @@
+From d94b0a0973662d0bbe33dd846f6b2dd0e09c5764 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Thu, 2 Mar 2023 16:57:56 +0100
+Subject: [PATCH] Add FrdpChannel and FrdpChannelDisplayControl
+
+Add FrdpChannel class which should be used as a base class for virtual channels.
+
+FrdpChannelDisplayControl is a class used to request display configuration
+changes in a remote session. It also checks whether the request is correct
+according to info obtained from server.
+
+Fixes #40
+---
+ src/frdp-channel-display-control.c | 260 +++++++++++++++++++++++++++++
+ src/frdp-channel-display-control.h |  47 ++++++
+ src/frdp-channel.c                 |  95 +++++++++++
+ src/frdp-channel.h                 |  36 ++++
+ src/frdp-context.h                 |   1 -
+ src/frdp-session.c                 |  57 ++++---
+ src/meson.build                    |   4 +
+ 7 files changed, 476 insertions(+), 24 deletions(-)
+ create mode 100644 src/frdp-channel-display-control.c
+ create mode 100644 src/frdp-channel-display-control.h
+ create mode 100644 src/frdp-channel.c
+ create mode 100644 src/frdp-channel.h
+
+diff --git a/src/frdp-channel-display-control.c b/src/frdp-channel-display-control.c
+new file mode 100644
+index 0000000..846bd59
+--- /dev/null
++++ b/src/frdp-channel-display-control.c
+@@ -0,0 +1,260 @@
++/* frdp-channel.c
++ *
++ * Copyright (C) 2023 Marek Kasik <mkasik@redhat.com>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "frdp-channel-display-control.h"
++
++#include <freerdp/client/disp.h>
++
++typedef struct
++{
++  DispClientContext *display_client_context;
++
++  guint32            max_num_monitors;
++  guint32            max_monitor_area_factor_a;
++  guint32            max_monitor_area_factor_b;
++
++  gboolean           caps_set;
++} FrdpChannelDisplayControlPrivate;
++
++G_DEFINE_TYPE_WITH_PRIVATE (FrdpChannelDisplayControl, frdp_channel_display_control, FRDP_TYPE_CHANNEL)
++
++enum
++{
++  PROP_0 = 0,
++  PROP_DISPLAY_CLIENT_CONTEXT,
++  PROP_MAX_NUM_MONITORS,
++  PROP_MAX_MONITOR_AREA_FACTOR_A,
++  PROP_MAX_MONITOR_AREA_FACTOR_B,
++  LAST_PROP
++};
++
++enum
++{
++  CAPS_SET,
++  LAST_SIGNAL
++};
++
++static guint signals[LAST_SIGNAL];
++
++static void frdp_channel_display_control_set_client_context (FrdpChannelDisplayControl *self,
++                                                             DispClientContext         *context);
++
++static void
++frdp_channel_display_control_get_property (GObject    *object,
++                                           guint       property_id,
++                                           GValue     *value,
++                                           GParamSpec *pspec)
++{
++  FrdpChannelDisplayControl        *self = FRDP_CHANNEL_DISPLAY_CONTROL (object);
++  FrdpChannelDisplayControlPrivate *priv = frdp_channel_display_control_get_instance_private (self);
++
++  switch (property_id)
++    {
++      case PROP_DISPLAY_CLIENT_CONTEXT:
++        g_value_set_pointer (value, priv->display_client_context);
++        break;
++      case PROP_MAX_NUM_MONITORS:
++        g_value_set_uint (value, priv->max_num_monitors);
++        break;
++      case PROP_MAX_MONITOR_AREA_FACTOR_A:
++        g_value_set_uint (value, priv->max_monitor_area_factor_a);
++        break;
++      case PROP_MAX_MONITOR_AREA_FACTOR_B:
++        g_value_set_uint (value, priv->max_monitor_area_factor_b);
++        break;
++      default:
++        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        break;
++    }
++}
++
++static void
++frdp_channel_display_control_set_property (GObject      *object,
++                                           guint         property_id,
++                                           const GValue *value,
++                                           GParamSpec   *pspec)
++{
++  FrdpChannelDisplayControl        *self = FRDP_CHANNEL_DISPLAY_CONTROL (object);
++  FrdpChannelDisplayControlPrivate *priv = frdp_channel_display_control_get_instance_private (self);
++
++  switch (property_id)
++    {
++      case PROP_DISPLAY_CLIENT_CONTEXT:
++        frdp_channel_display_control_set_client_context (self, g_value_get_pointer (value));
++        break;
++      case PROP_MAX_NUM_MONITORS:
++        priv->max_num_monitors = g_value_get_uint (value);
++        break;
++      case PROP_MAX_MONITOR_AREA_FACTOR_A:
++        priv->max_monitor_area_factor_a = g_value_get_uint (value);
++        break;
++      case PROP_MAX_MONITOR_AREA_FACTOR_B:
++        priv->max_monitor_area_factor_b = g_value_get_uint (value);
++        break;
++      default:
++        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        break;
++    }
++}
++
++static void
++frdp_channel_display_control_class_init (FrdpChannelDisplayControlClass *klass)
++{
++  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
++
++  gobject_class->get_property = frdp_channel_display_control_get_property;
++  gobject_class->set_property = frdp_channel_display_control_set_property;
++
++  g_object_class_install_property (gobject_class,
++                                   PROP_DISPLAY_CLIENT_CONTEXT,
++                                   g_param_spec_pointer ("display-client-context",
++                                                         "display-client-context",
++                                                         "Context for display client",
++                                                         G_PARAM_READWRITE));
++
++  g_object_class_install_property (gobject_class,
++                                   PROP_MAX_NUM_MONITORS,
++                                   g_param_spec_uint ("max-num-monitors",
++                                                      "max-num-monitors",
++                                                      "Maximum number of monitors supported by the server",
++                                                      0,
++                                                      UINT_MAX,
++                                                      16,
++                                                      G_PARAM_READWRITE));
++
++  g_object_class_install_property (gobject_class,
++                                   PROP_MAX_MONITOR_AREA_FACTOR_A,
++                                   g_param_spec_uint ("max-monitor-area-factor-a",
++                                                      "max-monitor-area-factor-a",
++                                                      "Maximum monitor area factor A",
++                                                      0,
++                                                      UINT_MAX,
++                                                      8192,
++                                                      G_PARAM_READWRITE));
++
++  g_object_class_install_property (gobject_class,
++                                   PROP_MAX_MONITOR_AREA_FACTOR_B,
++                                   g_param_spec_uint ("max-monitor-area-factor-b",
++                                                      "max-monitor-area-factor-b",
++                                                      "Maximum monitor area factor B",
++                                                      0,
++                                                      UINT_MAX,
++                                                      8192,
++                                                      G_PARAM_READWRITE));
++
++  signals[CAPS_SET] = g_signal_new ("caps-set",
++                                    G_TYPE_FROM_CLASS (klass),
++                                    G_SIGNAL_RUN_LAST,
++                                    0, NULL, NULL, NULL,
++                                    G_TYPE_NONE, 0);
++}
++
++static void
++frdp_channel_display_control_init (FrdpChannelDisplayControl *self)
++{
++}
++
++static guint
++display_control_caps (DispClientContext *context,
++                      guint32            max_num_monitors,
++                      guint32            max_monitor_area_factor_a,
++                      guint32            max_monitor_area_factor_b)
++{
++  FrdpChannelDisplayControlPrivate *priv;
++  FrdpChannelDisplayControl        *channel;
++
++  if (context != NULL) {
++    channel = (FrdpChannelDisplayControl *) context->custom;
++    priv = frdp_channel_display_control_get_instance_private (channel);
++
++    g_object_set (G_OBJECT (channel),
++                  "max-num-monitors", max_num_monitors,
++                  "max-monitor-area-factor-a", max_monitor_area_factor_a,
++                  "max-monitor-area-factor-b", max_monitor_area_factor_b,
++                  NULL);
++
++    priv->caps_set = TRUE;
++    g_signal_emit (channel, signals[CAPS_SET], 0);
++  }
++
++  return CHANNEL_RC_OK;
++}
++
++static void
++frdp_channel_display_control_set_client_context (FrdpChannelDisplayControl *self,
++                                                 DispClientContext         *context)
++{
++  FrdpChannelDisplayControlPrivate *priv = frdp_channel_display_control_get_instance_private (self);
++
++  priv->display_client_context = context;
++  context->custom = self;
++  context->DisplayControlCaps = display_control_caps;
++}
++
++void
++frdp_channel_display_control_resize_display (FrdpChannelDisplayControl *self,
++                                             guint                      width,
++                                             guint                      height)
++{
++  FrdpChannelDisplayControlPrivate *priv = frdp_channel_display_control_get_instance_private (self);
++  DISPLAY_CONTROL_MONITOR_LAYOUT   *monitor_layout;
++
++  if (priv->display_client_context != NULL &&
++      priv->caps_set &&
++      (width * height) <= (priv->max_num_monitors * priv->max_monitor_area_factor_a * priv->max_monitor_area_factor_b) &&
++      width >= DISPLAY_CONTROL_MIN_MONITOR_WIDTH &&
++      width <= DISPLAY_CONTROL_MAX_MONITOR_WIDTH &&
++      height >= DISPLAY_CONTROL_MIN_MONITOR_HEIGHT &&
++      height <= DISPLAY_CONTROL_MAX_MONITOR_HEIGHT) {
++
++    monitor_layout = g_new0 (DISPLAY_CONTROL_MONITOR_LAYOUT, 1);
++    if (monitor_layout != NULL) {
++      monitor_layout->Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
++      monitor_layout->Width = width;
++      monitor_layout->Height = height;
++      monitor_layout->Orientation = ORIENTATION_LANDSCAPE;
++      monitor_layout->DesktopScaleFactor = 100;
++      monitor_layout->DeviceScaleFactor = 100;
++
++      priv->display_client_context->SendMonitorLayout (priv->display_client_context, 1, monitor_layout);
++
++      g_free (monitor_layout);
++    }
++  } else {
++    if (priv->display_client_context == NULL)
++      g_warning ("DispClientContext has not been set yet!");
++
++    if (!priv->caps_set)
++      g_warning ("DisplayControlCaps() has not been called yet!");
++
++    if ((width * height) > (priv->max_num_monitors * priv->max_monitor_area_factor_a * priv->max_monitor_area_factor_b))
++      g_warning ("Requested display area is larger than allowed maximum area!");
++
++    if (width < DISPLAY_CONTROL_MIN_MONITOR_WIDTH)
++      g_warning ("Requested display width is lower than minimum allowed width!");
++
++    if (width > DISPLAY_CONTROL_MAX_MONITOR_WIDTH)
++      g_warning ("Requested display width is higher than maximum allowed width!");
++
++    if (height < DISPLAY_CONTROL_MIN_MONITOR_HEIGHT)
++      g_warning ("Requested display height is lower than minimum allowed height!");
++
++    if (height > DISPLAY_CONTROL_MAX_MONITOR_HEIGHT)
++      g_warning ("Requested display height is higher than maximum allowed height!");
++  }
++}
+diff --git a/src/frdp-channel-display-control.h b/src/frdp-channel-display-control.h
+new file mode 100644
+index 0000000..e0f0153
+--- /dev/null
++++ b/src/frdp-channel-display-control.h
+@@ -0,0 +1,47 @@
++/* frdp-channel-display-control.h
++ *
++ * Copyright (C) 2023 Marek Kasik <mkasik@redhat.com>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "frdp-channel.h"
++
++G_BEGIN_DECLS
++
++#define FRDP_TYPE_CHANNEL_DISPLAY_CONTROL (frdp_channel_display_control_get_type())
++
++G_DECLARE_FINAL_TYPE (FrdpChannelDisplayControl, frdp_channel_display_control, FRDP, CHANNEL_DISPLAY_CONTROL, GObject)
++
++typedef struct _FrdpChannelDisplayControl FrdpChannelDisplayControl;
++
++struct _FrdpChannelDisplayControl
++{
++  GObject parent_instance;
++};
++
++struct _FrdpChannelDisplayControlClass
++{
++  FrdpChannelClass parent_class;
++
++  void (*caps_set) (FrdpChannelDisplayControl *self);
++};
++
++void frdp_channel_display_control_resize_display (FrdpChannelDisplayControl *self,
++                                                  guint                      width,
++                                                  guint                      height);
++
++G_END_DECLS
+diff --git a/src/frdp-channel.c b/src/frdp-channel.c
+new file mode 100644
+index 0000000..6fae8e9
+--- /dev/null
++++ b/src/frdp-channel.c
+@@ -0,0 +1,95 @@
++/* frdp-channel.c
++ *
++ * Copyright (C) 2023 Marek Kasik <mkasik@redhat.com>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "frdp-channel.h"
++
++#include "frdp-session.h"
++
++typedef struct
++{
++  FrdpSession *session;
++} FrdpChannelPrivate;
++
++G_DEFINE_TYPE_WITH_PRIVATE (FrdpChannel, frdp_channel, G_TYPE_OBJECT)
++
++enum
++{
++  PROP_0 = 0,
++  PROP_SESSION,
++};
++
++static void
++frdp_channel_get_property (GObject      *object,
++                           guint         property_id,
++                           GValue       *value,
++                           GParamSpec   *pspec)
++{
++  FrdpChannel        *self = FRDP_CHANNEL (object);
++  FrdpChannelPrivate *priv = frdp_channel_get_instance_private (self);
++
++  switch (property_id)
++    {
++      case PROP_SESSION:
++        g_value_set_pointer (value, priv->session);
++        break;
++      default:
++        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        break;
++    }
++}
++
++static void
++frdp_channel_set_property (GObject      *object,
++                           guint         property_id,
++                           const GValue *value,
++                           GParamSpec   *pspec)
++{
++  FrdpChannel        *self = FRDP_CHANNEL (object);
++  FrdpChannelPrivate *priv = frdp_channel_get_instance_private (self);
++
++  switch (property_id)
++    {
++      case PROP_SESSION:
++        priv->session = g_value_get_pointer (value);
++        break;
++      default:
++        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        break;
++    }
++}
++
++static void
++frdp_channel_class_init (FrdpChannelClass *klass)
++{
++  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
++
++  gobject_class->get_property = frdp_channel_get_property;
++  gobject_class->set_property = frdp_channel_set_property;
++
++  g_object_class_install_property (gobject_class,
++                                   PROP_SESSION,
++                                   g_param_spec_pointer ("session",
++                                                         "session",
++                                                         "Current RDP session",
++                                                         G_PARAM_READWRITE));
++}
++
++static void
++frdp_channel_init (FrdpChannel *self)
++{
++}
+diff --git a/src/frdp-channel.h b/src/frdp-channel.h
+new file mode 100644
+index 0000000..f29ce24
+--- /dev/null
++++ b/src/frdp-channel.h
+@@ -0,0 +1,36 @@
++/* frdp-channel.h
++ *
++ * Copyright (C) 2023 Marek Kasik <mkasik@redhat.com>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <gtk/gtk.h>
++
++G_BEGIN_DECLS
++
++#define FRDP_TYPE_CHANNEL (frdp_channel_get_type())
++
++G_DECLARE_DERIVABLE_TYPE (FrdpChannel, frdp_channel, FRDP, CHANNEL, GObject)
++
++typedef struct _FrdpChannelClass FrdpChannelClass;
++
++struct _FrdpChannelClass
++{
++  GObjectClass parent_class;
++};
++
++G_END_DECLS
+diff --git a/src/frdp-context.h b/src/frdp-context.h
+index 1fc43b6..3b508ea 100644
+--- a/src/frdp-context.h
++++ b/src/frdp-context.h
+@@ -30,7 +30,6 @@ struct frdp_context
+ {
+   rdpContext context;
+   FrdpSession *self;
+-  DispClientContext *disp;
+ };
+ typedef struct frdp_context frdpContext;
+ 
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index d90b8eb..93f4c49 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -2,6 +2,7 @@
+  *
+  * Copyright (C) 2018 Felipe Borges <felipeborges@gnome.org>
+  * Copyright (C) 2019 Armin Novak <akallabeth@posteo.net>
++ * Copyright (C) 2023 Marek Kasik <mkasik@redhat.com>
+  *
+  * This program is free software: you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -44,6 +45,7 @@
+ 
+ #include "frdp-session.h"
+ #include "frdp-context.h"
++#include "frdp-channel-display-control.h"
+ 
+ #define SELECT_TIMEOUT 50
+ #define FRDP_CONNECTION_THREAD_MAX_ERRORS 10
+@@ -63,7 +65,6 @@ struct _FrdpSessionPrivate
+   cairo_surface_t *surface;
+   cairo_format_t cairo_format;
+   gboolean scaling;
+-  gboolean monitor_layout_supported;
+   double scale;
+   double offset_x;
+   double offset_y;
+@@ -80,6 +81,10 @@ struct _FrdpSessionPrivate
+   gboolean show_cursor;
+   gboolean cursor_null;
+   frdpPointer *cursor;
++
++  /* Channels */
++  FrdpChannelDisplayControl *display_control_channel;
++  gboolean                   monitor_layout_supported;
+ };
+ 
+ G_DEFINE_TYPE_WITH_PRIVATE (FrdpSession, frdp_session, G_TYPE_OBJECT)
+@@ -258,23 +263,11 @@ frdp_session_configure_event (GtkWidget *widget,
+   g_object_get (G_OBJECT (widget), "allow-resize", &allow_resize, NULL);
+ 
+   if (allow_resize) {
+-    DISPLAY_CONTROL_MONITOR_LAYOUT *monitor_layout;
+-    DispClientContext *disp = ((frdpContext *) priv->freerdp_session->context)->disp;
+-
+-    if (disp != NULL &&
+-        (settings->DesktopWidth != gtk_widget_get_allocated_width (scrolled) ||
+-         settings->DesktopHeight != gtk_widget_get_allocated_height (scrolled))) {
+-      monitor_layout = g_malloc0 (sizeof (DISPLAY_CONTROL_MONITOR_LAYOUT));
+-      if (monitor_layout != NULL) {
+-        monitor_layout->Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
+-        monitor_layout->Width = width;
+-        monitor_layout->Height = height;
+-        monitor_layout->Orientation = ORIENTATION_LANDSCAPE;
+-        monitor_layout->DesktopScaleFactor = 100;
+-        monitor_layout->DeviceScaleFactor = 100;
+-        disp->SendMonitorLayout (disp, 1, monitor_layout);
+-        g_free (monitor_layout);
+-      }
++    if (settings->DesktopWidth != gtk_widget_get_allocated_width (scrolled) ||
++        settings->DesktopHeight != gtk_widget_get_allocated_height (scrolled)) {
++      frdp_channel_display_control_resize_display (priv->display_control_channel,
++                                                   width,
++                                                   height);
+     }
+   } else {
+     if (priv->scaling) {
+@@ -371,17 +364,33 @@ frdp_authenticate (freerdp  *freerdp_session,
+                                     domain);
+ }
+ 
++static void
++caps_set (FrdpChannelDisplayControl *channel,
++          gpointer                   user_data)
++{
++  FrdpSession *session = user_data;
++
++  g_object_set (G_OBJECT (session), "monitor-layout-supported", TRUE, NULL);
++}
++
+ static void
+ frdp_on_channel_connected_event_handler (void                      *context,
+                                          ChannelConnectedEventArgs *e)
+ {
+-  frdpContext *ctx = (frdpContext *) context;
++  frdpContext        *ctx = (frdpContext *) context;
++  FrdpSession        *session = ctx->self;
++  FrdpSessionPrivate *priv = frdp_session_get_instance_private (session);
+ 
+   if (strcmp (e->name, RDPEI_DVC_CHANNEL_NAME) == 0) {
+     // TODO Touch input redirection
+   } else if (strcmp (e->name, DISP_DVC_CHANNEL_NAME) == 0) {
+-    ctx->disp = (DispClientContext *) e->pInterface;
+-    g_object_set (ctx->self, "monitor-layout-supported", ctx->disp != NULL, NULL);
++    g_clear_object (&priv->display_control_channel);
++
++    priv->display_control_channel = g_object_new (FRDP_TYPE_CHANNEL_DISPLAY_CONTROL,
++                                                  "session", session,
++                                                  "display-client-context", (DispClientContext *) e->pInterface,
++                                                  NULL);
++    g_signal_connect (priv->display_control_channel, "caps-set", G_CALLBACK (caps_set), session);
+   } else if (strcmp (e->name, TSMF_DVC_CHANNEL_NAME) == 0) {
+     // TODO Old windows 7 multimedia redirection
+   } else if (strcmp (e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
+@@ -405,12 +414,14 @@ static void
+ frdp_on_channel_disconnected_event_handler (void                         *context,
+                                             ChannelDisconnectedEventArgs *e)
+ {
+-  frdpContext *ctx = (frdpContext *) context;
++  frdpContext        *ctx = (frdpContext *) context;
++  FrdpSession        *session = ctx->self;
++  FrdpSessionPrivate *priv = frdp_session_get_instance_private (session);
+ 
+   if (strcmp (e->name, RDPEI_DVC_CHANNEL_NAME) == 0) {
+     // TODO Touch input redirection
+   } else if (strcmp (e->name, DISP_DVC_CHANNEL_NAME) == 0) {
+-    ctx->disp = NULL;
++    g_clear_object (&priv->display_control_channel);
+   } else if (strcmp (e->name, TSMF_DVC_CHANNEL_NAME) == 0) {
+     // TODO Old windows 7 multimedia redirection
+   } else if (strcmp (e->name, RDPGFX_DVC_CHANNEL_NAME) == 0) {
+diff --git a/src/meson.build b/src/meson.build
+index 6c0caaf..a511756 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -6,6 +6,8 @@ gtk_frdp_public_sources = [
+ ]
+ 
+ gtk_frdp_private_sources = [
++  'frdp-channel.c',
++  'frdp-channel-display-control.c'
+ ]
+ 
+ gtk_frdp_public_headers = [
+@@ -15,6 +17,8 @@ gtk_frdp_public_headers = [
+ ]
+ 
+ gtk_frdp_private_headers = [
++  'frdp-channel.h',
++  'frdp-channel-display-control.h',
+   'frdp-context.h'
+ ]
+ 
+-- 
+2.47.1
+

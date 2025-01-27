@@ -1,0 +1,31 @@
+From 3d16c32d4b6deec5a46163fb34bdee9ed50c5fb5 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Tue, 28 Nov 2023 18:16:27 +0100
+Subject: [PATCH] clipboard: Disconnect from owner-changed signal
+
+Disconnect the handler of owner-change signal since
+the GtkClipboard object survives the FrdpChannelClipboard.
+
+This fixes one of several crashes trigerred by random
+opening/closing of RDP connection and switching of
+applications.
+---
+ src/frdp-channel-clipboard.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/frdp-channel-clipboard.c b/src/frdp-channel-clipboard.c
+index 918b470..1d6814f 100644
+--- a/src/frdp-channel-clipboard.c
++++ b/src/frdp-channel-clipboard.c
+@@ -174,6 +174,8 @@ frdp_channel_clipboard_finalize (GObject *object)
+   FrdpChannelClipboard        *self = (FrdpChannelClipboard *) object;
+   FrdpChannelClipboardPrivate *priv = frdp_channel_clipboard_get_instance_private (self);
+ 
++  g_signal_handler_disconnect (priv->gtk_clipboard, priv->clipboard_owner_changed_id);
++
+   g_hash_table_unref (priv->remote_files_requests);
+   fuse_session_unmount (priv->fuse_session);
+   fuse_session_exit (priv->fuse_session);
+-- 
+2.47.1
+

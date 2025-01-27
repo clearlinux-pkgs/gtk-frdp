@@ -1,0 +1,28 @@
+From bff676b318a3b561862248ad525c197b6f799c8c Mon Sep 17 00:00:00 2001
+From: Manuel Wassermann <manuel.wassermann97@gmail.com>
+Date: Tue, 22 Nov 2022 10:23:59 +0100
+Subject: [PATCH] build: Fix deprecated feature warning
+
+meson.build_root gets deprecated with version 0.56.0.
+
+Use meson.current_build_dir instead of meson.build_root.
+---
+ meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index 9d811e5..4a7269d 100644
+--- a/meson.build
++++ b/meson.build
+@@ -12,7 +12,7 @@ configure_file(
+   configuration: config_h,
+ )
+ add_project_arguments([
+-  '-I' + meson.build_root(),
++  '-I' + meson.current_build_dir(),
+ ], language: 'c')
+ 
+ package_subdir = get_option('package_subdir')
+-- 
+2.47.1
+

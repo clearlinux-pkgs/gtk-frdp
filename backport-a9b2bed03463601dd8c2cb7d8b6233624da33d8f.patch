@@ -1,0 +1,43 @@
+From a9b2bed03463601dd8c2cb7d8b6233624da33d8f Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Wed, 6 Apr 2022 16:00:05 +0200
+Subject: [PATCH] frdp-session: Make sure the session is initialized on
+ configure-event
+
+---
+ src/frdp-session.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 8483a94..a708836 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -202,10 +202,13 @@ frdp_session_configure_event (GtkWidget *widget,
+   FrdpSession *self = (FrdpSession*) user_data;
+   FrdpSessionPrivate *priv = self->priv;
+   GtkScrolledWindow *scrolled;
+-  rdpSettings *settings = priv->freerdp_session->settings;
++  rdpSettings *settings;
+   rdpGdi *gdi;
+   double width, height;
+ 
++  if (priv->freerdp_session == NULL)
++    return;
++
+   gdi = priv->freerdp_session->context->gdi;
+   if (priv->surface == NULL) {
+     create_cairo_surface (self);
+@@ -215,6 +218,10 @@ frdp_session_configure_event (GtkWidget *widget,
+   width = (double)gtk_widget_get_allocated_width (scrolled);
+   height = (double)gtk_widget_get_allocated_height (scrolled);
+ 
++  if (priv->freerdp_session->settings == NULL)
++    return;
++  settings = priv->freerdp_session->settings;
++
+   if (priv->scaling) {
+     priv->scale_x = width / settings->DesktopWidth;
+     priv->scale_y = height / settings->DesktopHeight;
+-- 
+2.47.1
+

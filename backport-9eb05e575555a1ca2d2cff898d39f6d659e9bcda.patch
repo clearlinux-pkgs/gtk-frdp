@@ -1,0 +1,32 @@
+From 9eb05e575555a1ca2d2cff898d39f6d659e9bcda Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 3 Jul 2024 12:18:49 +0200
+Subject: [PATCH] frdp-display: Set the awaiting_authentication before
+ authentication signal
+
+The signal can be handled synchonously so we need the
+awaiting_authentication flag set sooner to not get stuck.
+---
+ src/frdp-display.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index 1e4b8d0..7975fff 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -645,10 +645,10 @@ frdp_display_authenticate (FrdpDisplay  *self,
+   FrdpDisplayPrivate *priv = frdp_display_get_instance_private (self);
+   GMainContext       *context;
+ 
+-  g_signal_emit (self, signals[RDP_NEEDS_AUTHENTICATION], 0);
+-
+   priv->awaiting_authentication = TRUE;
+ 
++  g_signal_emit (self, signals[RDP_NEEDS_AUTHENTICATION], 0);
++
+   context = g_main_context_default ();
+ 
+   while (priv->awaiting_authentication)
+-- 
+2.47.1
+

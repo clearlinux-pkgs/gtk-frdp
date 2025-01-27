@@ -1,0 +1,32 @@
+From b29cd6eacf0bf4a05d3f10b2d00b09a04f26b1a5 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Fri, 9 Feb 2024 15:22:55 +0100
+Subject: [PATCH] frdp-session: Do not use alpha channel
+
+Do not use alpha channel when bpp is 32. This fixes issues
+which happen when alpha channel is present and has
+a value which make the look of the result brighter than it
+should be (partially thanks to the fact that we have gray
+background and not black).
+
+Fixes #49
+---
+ src/frdp-session.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ef67103..48c90bf 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -607,7 +607,7 @@ frdp_post_connect (freerdp *freerdp_session)
+   settings = context->settings;
+   switch (frdp_session_get_best_color_depth (self)) {
+     case 32:
+-      color_format = PIXEL_FORMAT_BGRA32;
++      color_format = PIXEL_FORMAT_BGRX32;
+       self->priv->cairo_format = CAIRO_FORMAT_ARGB32;
+       break;
+     case 24:
+-- 
+2.47.1
+

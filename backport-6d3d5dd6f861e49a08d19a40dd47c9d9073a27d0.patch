@@ -1,0 +1,48 @@
+From 6d3d5dd6f861e49a08d19a40dd47c9d9073a27d0 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Fri, 6 Aug 2021 09:48:51 +0200
+Subject: [PATCH] display: Avoid closing connection twice
+
+---
+ src/frdp-display.c | 2 --
+ src/frdp-session.c | 4 ++--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index 05d856f..4f2b07b 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -261,8 +261,6 @@ frdp_display_open_host_cb (GObject      *source_object,
+     g_signal_emit (self, signals[RDP_DISCONNECTED], 0);
+ 
+     g_debug ("Connection failed");
+-
+-    frdp_display_close (self);
+   }
+ }
+ 
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index da5a2d6..cb62495 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -667,7 +667,6 @@ frdp_session_connect_thread (GTask        *task,
+             break;
+     }
+ 
+-    freerdp_free (self->priv->freerdp_session);
+     g_idle_add ((GSourceFunc) idle_close, self);
+     g_task_return_boolean (task, FALSE);
+ 
+@@ -769,7 +768,8 @@ frdp_session_finalize (GObject *object)
+     g_clear_pointer (&self->priv->freerdp_session, freerdp_free);
+   }
+ 
+-  frdp_session_close (self);
++  if (frdp_session_is_open (self))
++    frdp_session_close (self);
+ 
+   g_clear_pointer (&self->priv->hostname, g_free);
+   g_clear_pointer (&self->priv->username, g_free);
+-- 
+2.47.1
+

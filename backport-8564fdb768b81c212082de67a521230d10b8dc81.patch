@@ -1,0 +1,131 @@
+From 8564fdb768b81c212082de67a521230d10b8dc81 Mon Sep 17 00:00:00 2001
+From: Martin Blanchard <tchaik@gmx.com>
+Date: Thu, 28 Oct 2021 21:59:32 +0200
+Subject: [PATCH] frdp-display: Emit "rdp-error" on RDP session error
+
+Fixes: https://gitlab.gnome.org/GNOME/gtk-frdp/-/issues/32
+---
+ src/frdp-display.c | 20 ++++++++++++++++++++
+ src/frdp-session.c | 17 +++++++++++++++--
+ 2 files changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index 4f2b07b..94d9006 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -37,6 +37,7 @@ enum
+ 
+ enum
+ {
++  RDP_ERROR,
+   RDP_CONNECTED,
+   RDP_DISCONNECTED,
+   RDP_NEEDS_AUTHENTICATION,
+@@ -220,6 +221,14 @@ frdp_leave_notify_event (GtkWidget	       *widget,
+   return TRUE;
+ }
+ 
++static void
++frdp_display_error (GObject     *source_object,
++                    const gchar *message,
++                    gpointer     user_data)
++{
++  g_signal_emit (user_data, signals[RDP_ERROR], 0, message);
++}
++
+ static void
+ frdp_display_auth_failure (GObject     *source_object,
+                            const gchar *message,
+@@ -364,6 +373,13 @@ frdp_display_class_init (FrdpDisplayClass *klass)
+                                                          TRUE,
+                                                          G_PARAM_READWRITE));
+ 
++  signals[RDP_ERROR] = g_signal_new ("rdp-error",
++                                     G_TYPE_FROM_CLASS (klass),
++                                     G_SIGNAL_RUN_LAST,
++                                     0, NULL, NULL, NULL,
++                                     G_TYPE_NONE, 1,
++                                     G_TYPE_STRING);
++
+   signals[RDP_CONNECTED] = g_signal_new ("rdp-connected",
+                                          G_TYPE_FROM_CLASS (klass),
+                                          G_SIGNAL_RUN_LAST,
+@@ -381,6 +397,7 @@ frdp_display_class_init (FrdpDisplayClass *klass)
+                                                     G_SIGNAL_RUN_LAST,
+                                                     0, NULL, NULL, NULL,
+                                                     G_TYPE_NONE, 0);
++
+   signals[RDP_AUTH_FAILURE] = g_signal_new ("rdp-auth-failure",
+                                             G_TYPE_FROM_CLASS (klass),
+                                             G_SIGNAL_RUN_LAST,
+@@ -427,6 +444,9 @@ frdp_display_open_host (FrdpDisplay  *display,
+ 
+   g_return_if_fail (host != NULL);
+ 
++  g_signal_connect (priv->session, "rdp-error",
++                    G_CALLBACK (frdp_display_error),
++                    display);
+   g_signal_connect (priv->session, "rdp-disconnected",
+                     G_CALLBACK (frdp_display_disconnected),
+                     display);
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 8e4d3cf..5c95737 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -79,6 +79,7 @@ enum
+ 
+ enum
+ {
++  RDP_ERROR,
+   RDP_CONNECTED,
+   RDP_DISCONNECTED,
+   RDP_AUTH_FAILURE,
+@@ -693,7 +694,11 @@ frdp_session_connect_thread (GTask        *task,
+             break;
+ 
+         default:
+-            g_warning ("Unhandled FreeRDP error: '%s'",
++            g_signal_emit (self,
++                           signals[RDP_ERROR], 0,
++                           freerdp_get_last_error_string (error_code));
++
++            g_warning ("Unexpected RDP error: '%s'",
+                        freerdp_get_last_error_string (error_code));
+             break;
+     }
+@@ -854,23 +859,31 @@ frdp_session_class_init (FrdpSessionClass *klass)
+                                                          TRUE,
+                                                          G_PARAM_READWRITE));
+ 
++  signals[RDP_ERROR] = g_signal_new ("rdp-error",
++                                     FRDP_TYPE_SESSION,
++                                     G_SIGNAL_RUN_FIRST,
++                                     0, NULL, NULL, NULL,
++                                     G_TYPE_NONE, 1,
++                                     G_TYPE_STRING);
++
+   signals[RDP_CONNECTED] = g_signal_new ("rdp-connected",
+                                          FRDP_TYPE_SESSION,
+                                          G_SIGNAL_RUN_FIRST,
+                                          0, NULL, NULL, NULL,
+                                          G_TYPE_NONE, 0);
++
+   signals[RDP_DISCONNECTED] = g_signal_new ("rdp-disconnected",
+                                             FRDP_TYPE_SESSION,
+                                             G_SIGNAL_RUN_FIRST,
+                                             0, NULL, NULL, NULL,
+                                             G_TYPE_NONE, 0);
++
+   signals[RDP_AUTH_FAILURE] = g_signal_new ("rdp-auth-failure",
+                                             FRDP_TYPE_SESSION,
+                                             G_SIGNAL_RUN_FIRST,
+                                             0, NULL, NULL, NULL,
+                                             G_TYPE_NONE, 1,
+                                             G_TYPE_STRING);
+-
+ }
+ 
+ static void
+-- 
+2.47.1
+

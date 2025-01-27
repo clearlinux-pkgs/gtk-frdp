@@ -1,0 +1,31 @@
+From 6a0483a04abb1a7215855c7447642d8e42219a8b Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Sat, 11 Feb 2023 20:44:55 +0100
+Subject: [PATCH] frdp-session: Do not recreate cairo surface when not needed
+
+Check whether the drawing surface already exists and also
+its size before destroying/recreating it in frdp_session_draw().
+---
+ src/frdp-session.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 68f28c7..e7d993d 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -272,7 +272,11 @@ frdp_session_draw (GtkWidget *widget,
+   if (!self->priv->is_connected)
+     return FALSE;
+ 
+-  create_cairo_surface (self);
++  if (self->priv->surface == NULL ||
++      (self->priv->freerdp_session->context->gdi->width != cairo_image_surface_get_width (self->priv->surface) ||
++       self->priv->freerdp_session->context->gdi->height != cairo_image_surface_get_height (self->priv->surface))) {
++    create_cairo_surface (self);
++  }
+ 
+   if (self->priv->scaling) {
+       cairo_translate (cr, self->priv->offset_x, self->priv->offset_y);
+-- 
+2.47.1
+

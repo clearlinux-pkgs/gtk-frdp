@@ -1,0 +1,26 @@
+From 5151ad3a4ba65d19a8b5d92c7fe785686a6ff9b2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Purple=20=E6=A1=9C?= <2569677439@qq.com>
+Date: Wed, 3 Aug 2022 09:00:40 +0000
+Subject: [PATCH] fix error: LoadLibraryA:
+ /usr/local/lib64/freerdp2/libcliprdr-client.so
+
+---
+ src/frdp-session.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 0bdbd02..075bd17 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -625,6 +625,8 @@ frdp_session_init_freerdp (FrdpSession *self)
+ 
+   settings->AllowFontSmoothing = TRUE;
+   settings->AllowUnanouncedOrdersFromServer = TRUE;
++
++  freerdp_register_addin_provider(freerdp_channels_load_static_addin_entry, 0);
+ }
+ 
+ static void
+-- 
+2.47.1
+

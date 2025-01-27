@@ -1,0 +1,38 @@
+From 8e0e2a4c41e97c6d72e41b06822a4f0437824b6c Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Wed, 6 Apr 2022 15:52:05 +0200
+Subject: [PATCH] frdp-session: No need to call "draw" when disconnected
+
+---
+ src/frdp-session.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index ed64b42..8483a94 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -242,6 +242,10 @@ frdp_session_draw (GtkWidget *widget,
+ {
+   FrdpSession *self = (FrdpSession*) user_data;
+ 
++  // Nothing to draw if disconnected
++  if (!self->priv->is_connected)
++    return FALSE;
++
+   create_cairo_surface (self);
+ 
+   if (self->priv->scaling) {
+@@ -461,10 +465,6 @@ idle_close (gpointer user_data)
+     g_clear_pointer (&self->priv->freerdp_session, freerdp_free);
+   }
+ 
+-  g_clear_pointer (&self->priv->hostname, g_free);
+-  g_clear_pointer (&self->priv->username, g_free);
+-  g_clear_pointer (&self->priv->password, g_free);
+-
+   g_signal_emit (self, signals[RDP_DISCONNECTED], 0);
+   g_debug ("RDP client disconnected");
+ 
+-- 
+2.47.1
+

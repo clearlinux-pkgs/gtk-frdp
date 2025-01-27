@@ -1,0 +1,29 @@
+From 7ce17bea7d77e745934a396cb309cf2fabdd1fa8 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Mon, 12 Jul 2021 15:44:59 +0200
+Subject: [PATCH] examples: Install examples
+
+Since the "examples" are now built optionally, we can install them
+in case they are built.
+
+This will be useful when we will have a Flatpak build of the examples
+allowing us to develop this library entirely with Flatpak.
+---
+ examples/meson.build | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/examples/meson.build b/examples/meson.build
+index a21af33..03591fe 100644
+--- a/examples/meson.build
++++ b/examples/meson.build
+@@ -4,6 +4,7 @@ example_application_sources = [
+ 
+ example_application = executable('gtk-frdp-viewer', example_application_sources,
+   dependencies: gtk_frdp_dep,
++  install: true
+ )
+ 
+ vala_args = [
+-- 
+2.47.1
+

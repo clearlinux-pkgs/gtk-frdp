@@ -1,0 +1,128 @@
+From 9086ab7e29c40865cf47f1bc4a391346c9fb9ba8 Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Mon, 19 Feb 2024 16:45:26 +0100
+Subject: [PATCH] Handle smooth scroll events smoothly
+
+Provide correct values when scrolling smoothly
+so that small amount of scrolling has an
+effect.
+This allows smooth scrolling using touchpad under
+Wayland.
+---
+ src/frdp-display.c | 23 ++++++-----------------
+ src/frdp-session.c | 47 ++++++++++++++++++++++++++++++++++++++++++++++
+ src/frdp-session.h |  6 ++++++
+ 3 files changed, 59 insertions(+), 17 deletions(-)
+
+diff --git a/src/frdp-display.c b/src/frdp-display.c
+index 99d2316..b880df2 100644
+--- a/src/frdp-display.c
++++ b/src/frdp-display.c
+@@ -181,23 +181,12 @@ frdp_display_scroll_event (GtkWidget      *widget,
+       flags = FRDP_MOUSE_EVENT_HWHEEL;
+       break;
+     case GDK_SCROLL_SMOOTH:
+-    /* Calculate delta and decide which event we have
+-     * a delta X means horizontal, a delta Y means vertical scroll.
+-     * Fixes https://bugzilla.gnome.org/show_bug.cgi?id=675959
+-     */
+-    if (event->delta_x > 0.5)
+-      flags = FRDP_MOUSE_EVENT_HWHEEL;
+-    else if (event->delta_x < -0.5)
+-      flags = FRDP_MOUSE_EVENT_HWHEEL | FRDP_MOUSE_EVENT_WHEEL_NEGATIVE;
+-    else if (event->delta_y > 0.5)
+-      flags = FRDP_MOUSE_EVENT_WHEEL;
+-    else if (event->delta_y < -0.5)
+-      flags = FRDP_MOUSE_EVENT_WHEEL | FRDP_MOUSE_EVENT_WHEEL_NEGATIVE;
+-    else {
+-      g_debug ("scroll smooth unhandled");
+-      return FALSE;
+-    }
+-    break;
++      frdp_session_mouse_smooth_scroll_event (priv->session,
++                                              event->x,
++                                              event->y,
++                                              event->delta_x,
++                                              event->delta_y);
++      return TRUE;
+     default:
+       return FALSE;
+   }
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index fd49005..09210ed 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -1394,6 +1394,53 @@ frdp_session_mouse_event (FrdpSession          *self,
+   }
+ }
+ 
++void
++frdp_session_mouse_smooth_scroll_event (FrdpSession          *self,
++                                        guint16               x,
++                                        guint16               y,
++                                        double                delta_x,
++                                        double                delta_y)
++{
++  FrdpSessionPrivate *priv = self->priv;
++  rdpInput           *input;
++  guint16             flags = 0, value;
++
++  g_return_if_fail (priv->freerdp_session != NULL);
++
++  if (fabs (delta_y) >= fabs (delta_x)) {
++    flags |= PTR_FLAGS_WHEEL;
++    value = (guint16) round (fabs (delta_y) * 0x78);
++    /* Reversing direction here to reflect the behaviour on local side. */
++    if (delta_y < 0.0) {
++      flags |= value & WheelRotationMask;
++    } else {
++      flags |= PTR_FLAGS_WHEEL_NEGATIVE;
++      flags |= (~value + 1) & WheelRotationMask;
++    }
++  } else {
++    flags |= PTR_FLAGS_HWHEEL;
++    value = (guint16) round (fabs (delta_x) * 0x78);
++    if (delta_x < 0.0) {
++      flags |= PTR_FLAGS_WHEEL_NEGATIVE;
++      flags |= (~value + 1) & WheelRotationMask;
++    } else {
++      flags |= value & WheelRotationMask;
++    }
++  }
++
++  input = priv->freerdp_session->context->input;
++
++  if (priv->scaling) {
++    x = (x - priv->offset_x) / priv->scale;
++    y = (y - priv->offset_y) / priv->scale;
++  }
++
++  x = x < 0.0 ? 0.0 : x;
++  y = y < 0.0 ? 0.0 : y;
++
++  freerdp_input_send_mouse_event (input, flags, x, y);
++}
++
+ void
+ frdp_session_mouse_pointer  (FrdpSession          *self,
+                              gboolean              enter)
+diff --git a/src/frdp-session.h b/src/frdp-session.h
+index 8357f32..6d17450 100644
+--- a/src/frdp-session.h
++++ b/src/frdp-session.h
+@@ -80,6 +80,12 @@ void         frdp_session_mouse_event    (FrdpSession          *self,
+                                           guint16               x,
+                                           guint16               y);
+ 
++void         frdp_session_mouse_smooth_scroll_event (FrdpSession          *self,
++                                                     guint16               x,
++                                                     guint16               y,
++                                                     double                delta_x,
++                                                     double                delta_y);
++
+ void         frdp_session_mouse_pointer  (FrdpSession          *self,
+                                           gboolean              enter);
+ 
+-- 
+2.47.1
+

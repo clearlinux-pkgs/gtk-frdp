@@ -1,0 +1,555 @@
+From da0f1af4c117c8fadbe1d37a9e516fe3f2afcfed Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 14 Feb 2024 12:55:28 +0100
+Subject: [PATCH] Add support for FreerRDP 3
+
+Add support for FreeRDP 3 and keep compatibility with FreeRDP 2
+for next few releases (probably 2).
+
+There were some minor changes in the API + removal of 2 functions
+for text conversion which we've replaced by another functions.
+
+Fixes #45
+---
+ src/frdp-channel-clipboard.c | 148 ++++++++++++++++++++++++-----------
+ src/frdp-session.c           |  66 ++++++++++------
+ src/meson.build              |  21 ++++-
+ 3 files changed, 163 insertions(+), 72 deletions(-)
+
+diff --git a/src/frdp-channel-clipboard.c b/src/frdp-channel-clipboard.c
+index f7f3763..c0169c0 100644
+--- a/src/frdp-channel-clipboard.c
++++ b/src/frdp-channel-clipboard.c
+@@ -24,6 +24,16 @@
+ #define FUSE_USE_VERSION 35
+ #include <fuse_lowlevel.h>
+ 
++#ifdef HAVE_FREERDP3
++#define COMMON(x) common.x
++#else
++#define COMMON(x) x
++#endif
++
++#define FRDP_CLIPBOARD_FORMAT_PNG          0xD011
++#define FRDP_CLIPBOARD_FORMAT_JPEG         0xD012
++#define FRDP_CLIPBOARD_FORMAT_TEXT_URILIST 0xD014
++
+ typedef struct
+ {
+   guchar   *data;
+@@ -640,7 +650,7 @@ frdp_channel_clipboard_init (FrdpChannelClipboard *self)
+ 
+   priv->gtk_clipboard = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
+   priv->clipboard_owner_changed_id = g_signal_connect (priv->gtk_clipboard, "owner-change", G_CALLBACK (clipboard_owner_change_cb), self);
+-  priv->fgdw_id = CB_FORMAT_TEXTURILIST;
++  priv->fgdw_id = FRDP_CLIPBOARD_FORMAT_TEXT_URILIST;
+   priv->current_inode = FUSE_ROOT_ID + 1;
+   priv->locked_data = NULL;
+   priv->pending_lock = FALSE;
+@@ -740,10 +750,10 @@ send_client_format_list (FrdpChannelClipboard *self)
+         formats[j].formatId = CF_TEXT;
+         formats[j++].formatName = NULL;
+       } else if (g_strcmp0 (atom_name, "image/png") == 0) {
+-        formats[j].formatId = CB_FORMAT_PNG;
++        formats[j].formatId = FRDP_CLIPBOARD_FORMAT_PNG;
+         formats[j++].formatName = NULL;
+       } else if (g_strcmp0 (atom_name, "image/jpeg") == 0) {
+-        formats[j].formatId = CB_FORMAT_JPEG;
++        formats[j].formatId = FRDP_CLIPBOARD_FORMAT_JPEG;
+         formats[j++].formatName = NULL;
+       } else if (g_strcmp0 (atom_name, "image/bmp") == 0) {
+         formats[j].formatId = CF_DIB;
+@@ -757,8 +767,8 @@ send_client_format_list (FrdpChannelClipboard *self)
+     }
+   }
+ 
+-  format_list.msgType = CB_FORMAT_LIST;
+-  format_list.msgFlags = CB_RESPONSE_OK;
++  format_list.COMMON(msgType) = CB_FORMAT_LIST;
++  format_list.COMMON(msgFlags) = CB_RESPONSE_OK;
+   format_list.numFormats = j;
+   format_list.formats = formats;
+ 
+@@ -895,9 +905,9 @@ send_client_format_list_response (FrdpChannelClipboard *self,
+   CLIPRDR_FORMAT_LIST_RESPONSE  response = { 0 };
+   FrdpChannelClipboardPrivate  *priv = frdp_channel_clipboard_get_instance_private (self);
+ 
+-  response.msgType = CB_FORMAT_LIST_RESPONSE;
+-  response.msgFlags = status ? CB_RESPONSE_OK : CB_RESPONSE_FAIL;
+-  response.dataLen = 0;
++  response.COMMON(msgType) = CB_FORMAT_LIST_RESPONSE;
++  response.COMMON(msgFlags) = status ? CB_RESPONSE_OK : CB_RESPONSE_FAIL;
++  response.COMMON(dataLen) = 0;
+ 
+   return priv->cliprdr_client_context->ClientFormatListResponse (priv->cliprdr_client_context, &response);
+ }
+@@ -915,6 +925,49 @@ replace_ascii_character (gchar *text,
+   }
+ }
+ 
++static WCHAR *
++convert_to_unicode (const gchar *text)
++{
++  WCHAR *result = NULL;
++
++  if (text != NULL) {
++#ifdef HAVE_FREERDP3
++    gssize conversion_length = ConvertUtf8ToWChar (text, NULL, 0);
++    if (conversion_length >= 0) {
++      result = g_new0 (WCHAR, conversion_length + 1);
++      if (ConvertUtf8ToWChar (text, result, conversion_length + 1) != conversion_length)
++        g_clear_pointer (&result, g_free);
++    }
++#else
++    ConvertToUnicode (CP_UTF8, 0, (LPCSTR) text, -1, &result, 0);
++#endif
++  }
++
++  return result;
++}
++
++static gchar *
++convert_from_unicode (const WCHAR *text,
++                      gint         text_length)
++{
++  gchar *result = NULL;
++
++  if (text != NULL) {
++#ifdef HAVE_FREERDP3
++    gssize conversion_length = ConvertWCharToUtf8 (text, NULL, 0);
++    if (conversion_length >= 0) {
++      result = g_new0 (gchar, conversion_length + 1);
++      if (ConvertWCharToUtf8 (text, result, conversion_length + 1) != conversion_length)
++        g_clear_pointer (&result, g_free);
++    }
++#else
++    ConvertFromUnicode (CP_UTF8, 0, text, text_length, &result, 0, NULL, NULL);
++#endif
++  }
++
++  return result;
++}
++
+ /* TODO: Rewrite this using async methods of GtkCLipboard once we move to Gtk4 */
+ static void
+ _gtk_clipboard_get_func (GtkClipboard     *clipboard,
+@@ -929,9 +982,9 @@ _gtk_clipboard_get_func (GtkClipboard     *clipboard,
+   gchar                       *data = NULL;
+   gint                         length;
+ 
+-  lock_clipboard_data.msgType = CB_LOCK_CLIPDATA;
+-  lock_clipboard_data.msgFlags = 0;
+-  lock_clipboard_data.dataLen = 4;
++  lock_clipboard_data.COMMON(msgType) = CB_LOCK_CLIPDATA;
++  lock_clipboard_data.COMMON(msgFlags) = 0;
++  lock_clipboard_data.COMMON(dataLen) = 4;
+   lock_clipboard_data.clipDataId = ++priv->remote_clip_data_id;
+   priv->cliprdr_client_context->ClientLockClipboardData (priv->cliprdr_client_context, &lock_clipboard_data);
+ 
+@@ -943,13 +996,15 @@ _gtk_clipboard_get_func (GtkClipboard     *clipboard,
+ 
+     if (info == CF_UNICODETEXT) {
+       /* TODO - convert CR LF to CR */
+-      length = ConvertFromUnicode (CP_UTF8, 0, (WCHAR *) current_request->responses[0].data, (int) (current_request->responses[0].length / sizeof (WCHAR)), &data, 0, NULL, NULL);
+-
+-      gtk_selection_data_set (selection_data,
+-                              gdk_atom_intern ("UTF8_STRING", FALSE),
+-                              8,
+-                              (guchar *) data,
+-                              length);
++      data = convert_from_unicode ((WCHAR *) current_request->responses[0].data, current_request->responses[0].length / sizeof (WCHAR));
++      if (data != NULL) {
++        length = strlen (data);
++        gtk_selection_data_set (selection_data,
++                                gdk_atom_intern ("UTF8_STRING", FALSE),
++                                8,
++                                (guchar *) data,
++                                length);
++      }
+     } else if (info == CF_DIB) {
+       /* This has been inspired by function transmute_cf_dib_to_image_bmp() from gtk */
+       BITMAPINFOHEADER *bi = (BITMAPINFOHEADER *) current_request->responses[0].data;
+@@ -988,7 +1043,7 @@ _gtk_clipboard_get_func (GtkClipboard     *clipboard,
+           priv->remote_files_infos = g_new0 (FrdpRemoteFileInfo, priv->remote_files_count);
+ 
+           for (i = 0; i < count; i++) {
+-            length = ConvertFromUnicode (CP_UTF8, 0, (WCHAR *) files[i].cFileName, (int) (260 / sizeof (WCHAR)), &path, 0, NULL, NULL);
++            path = convert_from_unicode ((WCHAR *) files[i].cFileName, 260 / sizeof (WCHAR));
+ 
+             replace_ascii_character (path, '\\', '/');
+ 
+@@ -1114,9 +1169,9 @@ _gtk_clipboard_clear_func (GtkClipboard *clipboard,
+ 
+   g_mutex_unlock (&priv->fuse_mutex);
+ 
+-  unlock_clipboard_data.msgType = CB_UNLOCK_CLIPDATA;
+-  unlock_clipboard_data.msgFlags = 0;
+-  unlock_clipboard_data.dataLen = 4;
++  unlock_clipboard_data.COMMON(msgType) = CB_UNLOCK_CLIPDATA;
++  unlock_clipboard_data.COMMON(msgFlags) = 0;
++  unlock_clipboard_data.COMMON(dataLen) = 4;
+   unlock_clipboard_data.clipDataId = priv->remote_clip_data_id;
+   priv->cliprdr_client_context->ClientUnlockClipboardData (priv->cliprdr_client_context, &unlock_clipboard_data);
+ 
+@@ -1163,7 +1218,7 @@ server_format_list (CliprdrClientContext      *context,
+           atom = gdk_atom_intern ("UTF8_STRING", FALSE);
+         } else if (format_list->formats[i].formatId == CF_DIB) {
+           atom = gdk_atom_intern ("image/bmp", FALSE);
+-        } else if (format_list->formats[i].formatId == CB_FORMAT_PNG) {
++        } else if (format_list->formats[i].formatId == FRDP_CLIPBOARD_FORMAT_PNG) {
+           atom = gdk_atom_intern ("image/png", FALSE);
+         }
+ 
+@@ -1236,9 +1291,11 @@ frdp_local_file_info_new (GFile     *file,
+     relative_path = g_file_get_relative_path (root, file);
+     replace_ascii_character (relative_path, '/', '\\');
+ 
+-    ConvertToUnicode (CP_UTF8, 0, (LPCSTR) relative_path, -1, &file_name, 0);
+-    memcpy (frdp_file_info->descriptor->cFileName, file_name, strlen (relative_path) * 2);
+-    g_free (file_name);
++    file_name = convert_to_unicode (relative_path);
++    if (file_name != NULL) {
++      memcpy (frdp_file_info->descriptor->cFileName, file_name, strlen (relative_path) * 2);
++      g_free (file_name);
++    }
+     g_free (relative_path);
+ 
+     file_size = g_file_info_get_size (file_info);
+@@ -1310,8 +1367,8 @@ send_data_response (FrdpChannelClipboard *self,
+   if (size > UINT32_MAX)
+     return ERROR_INVALID_PARAMETER;
+ 
+-  response.msgFlags = (data) ? CB_RESPONSE_OK : CB_RESPONSE_FAIL;
+-  response.dataLen = (guint32) size;
++  response.COMMON(msgFlags) = (data) ? CB_RESPONSE_OK : CB_RESPONSE_FAIL;
++  response.COMMON(dataLen) = (guint32) size;
+   response.requestedFormatData = data;
+ 
+   return priv->cliprdr_client_context->ClientFormatDataResponse (priv->cliprdr_client_context, &response);
+@@ -1339,10 +1396,13 @@ clipboard_content_received (GtkClipboard     *clipboard,
+     if (data_type == gdk_atom_intern ("UTF8_STRING", FALSE)) {
+       text = gtk_selection_data_get_text (selection_data);
+       text_length = strlen ((gchar *) text);
+-      if (ConvertToUnicode (CP_UTF8, 0, (LPCSTR) text, text_length, (WCHAR **) &data, 0) > 0) {
++
++      data = (guchar *) convert_to_unicode ((gchar *) text);
++      if (data != NULL) {
+         send_data_response (self, data, (text_length + 1) * sizeof (WCHAR));
+         g_free (data);
+       }
++
+       g_free (text);
+     } else if (data_type == gdk_atom_intern ("image/png", FALSE)) {
+       pixbuf = gtk_selection_data_get_pixbuf (selection_data);
+@@ -1454,13 +1514,13 @@ server_format_data_request (CliprdrClientContext              *context,
+                                       clipboard_content_received,
+                                       self);
+       break;
+-    case CB_FORMAT_PNG:
++    case FRDP_CLIPBOARD_FORMAT_PNG:
+       gtk_clipboard_request_contents (priv->gtk_clipboard,
+                                       gdk_atom_intern ("image/png", FALSE),
+                                       clipboard_content_received,
+                                       self);
+       break;
+-    case CB_FORMAT_JPEG:
++    case FRDP_CLIPBOARD_FORMAT_JPEG:
+       gtk_clipboard_request_contents (priv->gtk_clipboard,
+                                       gdk_atom_intern ("image/jpeg", FALSE),
+                                       clipboard_content_received,
+@@ -1501,7 +1561,7 @@ server_format_data_response (CliprdrClientContext               *context,
+     self = (FrdpChannelClipboard *) context->custom;
+     priv = frdp_channel_clipboard_get_instance_private (self);
+ 
+-    if (response->msgType == CB_FORMAT_DATA_RESPONSE) {
++    if (response->COMMON(msgType) == CB_FORMAT_DATA_RESPONSE) {
+       if (priv->requests != NULL) {
+         current_request = priv->requests->data;
+         for (j = 0; j < current_request->count; j++) {
+@@ -1513,10 +1573,10 @@ server_format_data_response (CliprdrClientContext               *context,
+ 
+         if (subrequest_index >= 0 && subrequest_index < current_request->count) {
+           current_request->responses[subrequest_index].handled = TRUE;
+-          if (response->msgFlags & CB_RESPONSE_OK) {
+-            current_request->responses[subrequest_index].length = response->dataLen;
+-            current_request->responses[subrequest_index].data = g_new (guchar, response->dataLen);
+-            memcpy (current_request->responses[subrequest_index].data, response->requestedFormatData, response->dataLen);
++          if (response->COMMON(msgFlags) & CB_RESPONSE_OK) {
++            current_request->responses[subrequest_index].length = response->COMMON(dataLen);
++            current_request->responses[subrequest_index].data = g_new (guchar, response->COMMON(dataLen));
++            memcpy (current_request->responses[subrequest_index].data, response->requestedFormatData, response->COMMON(dataLen));
+           } else {
+             g_warning ("Clipboard data request failed!");
+           }
+@@ -1550,8 +1610,8 @@ server_file_contents_request (CliprdrClientContext                *context,
+   GList                          *iter;
+   GFile                          *file;
+ 
+-  response.msgType = CB_FILECONTENTS_RESPONSE;
+-  response.msgFlags = CB_RESPONSE_FAIL;
++  response.COMMON(msgType) = CB_FILECONTENTS_RESPONSE;
++  response.COMMON(msgFlags) = CB_RESPONSE_FAIL;
+   response.streamId = file_contents_request->streamId;
+ 
+   g_mutex_lock (&priv->lock_mutex);
+@@ -1589,8 +1649,8 @@ server_file_contents_request (CliprdrClientContext                *context,
+ 
+       response.requestedData = (guchar *) size;
+       response.cbRequested = 8;
+-      response.dataLen = 8;
+-      response.msgFlags = CB_RESPONSE_OK;
++      response.COMMON(dataLen) = 8;
++      response.COMMON(msgFlags) = CB_RESPONSE_OK;
+ 
+       g_object_unref (file_info);
+     } else if (file_contents_request->dwFlags & FILECONTENTS_RANGE) {
+@@ -1608,8 +1668,8 @@ server_file_contents_request (CliprdrClientContext                *context,
+ 
+           response.requestedData = data;
+           response.cbRequested = bytes_read;
+-          response.dataLen = bytes_read;
+-          response.msgFlags = CB_RESPONSE_OK;
++          response.COMMON(dataLen) = bytes_read;
++          response.COMMON(msgFlags) = CB_RESPONSE_OK;
+         }
+       } else {
+         g_warning ("Content of a directory was requested!");
+@@ -1639,7 +1699,7 @@ server_file_contents_response (CliprdrClientContext                 *context,
+   FrdpRemoteFileRequest       *request;
+   struct stat                  attr = {0};
+ 
+-  if (context != NULL && file_contents_response->msgFlags & CB_RESPONSE_OK) {
++  if (context != NULL && file_contents_response->COMMON(msgFlags) & CB_RESPONSE_OK) {
+     self = (FrdpChannelClipboard *) context->custom;
+     priv = frdp_channel_clipboard_get_instance_private (self);
+ 
+@@ -1684,7 +1744,7 @@ server_file_contents_response (CliprdrClientContext                 *context,
+       g_mutex_unlock (&priv->fuse_mutex);
+     }
+   } else {
+-    if (file_contents_response->msgFlags & CB_RESPONSE_FAIL) {
++    if (file_contents_response->COMMON(msgFlags) & CB_RESPONSE_FAIL) {
+       g_warning ("Server file response has failed!");
+     }
+   }
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 48c90bf..fd49005 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -51,6 +51,12 @@
+ #define SELECT_TIMEOUT 50
+ #define FRDP_CONNECTION_THREAD_MAX_ERRORS 10
+ 
++#ifdef HAVE_FREERDP3
++#define CONST_QUALIFIER const
++#else
++#define CONST_QUALIFIER
++#endif
++
+ struct frdp_pointer
+ {
+ 	rdpPointer pointer;
+@@ -259,10 +265,10 @@ frdp_session_configure_event (GtkWidget *widget,
+   width = (double)gtk_widget_get_allocated_width (scrolled);
+   height = (double)gtk_widget_get_allocated_height (scrolled);
+ 
+-  if (priv->freerdp_session->settings == NULL)
++  if (priv->freerdp_session->context->settings == NULL)
+     return;
+ 
+-  settings = priv->freerdp_session->settings;
++  settings = priv->freerdp_session->context->settings;
+ 
+   g_object_get (G_OBJECT (widget), "allow-resize", &allow_resize, NULL);
+ 
+@@ -435,8 +441,8 @@ caps_set (FrdpChannelDisplayControl *channel,
+ }
+ 
+ static void
+-frdp_on_channel_connected_event_handler (void                      *context,
+-                                         ChannelConnectedEventArgs *e)
++frdp_on_channel_connected_event_handler (void                                      *context,
++                                         CONST_QUALIFIER ChannelConnectedEventArgs *e)
+ {
+   frdpContext        *ctx = (frdpContext *) context;
+   FrdpSession        *session = ctx->self;
+@@ -477,8 +483,8 @@ frdp_on_channel_connected_event_handler (void                      *context,
+ }
+ 
+ static void
+-frdp_on_channel_disconnected_event_handler (void                         *context,
+-                                            ChannelDisconnectedEventArgs *e)
++frdp_on_channel_disconnected_event_handler (void                                         *context,
++                                            CONST_QUALIFIER ChannelDisconnectedEventArgs *e)
+ {
+   frdpContext        *ctx = (frdpContext *) context;
+   FrdpSession        *session = ctx->self;
+@@ -507,10 +513,19 @@ frdp_on_channel_disconnected_event_handler (void                         *contex
+   }
+ }
+ 
++static gboolean
++frdp_load_channels (freerdp *instance)
++{
++  if (!freerdp_client_load_addins (instance->context->channels, instance->context->settings))
++    return FALSE;
++
++  return TRUE;
++}
++
+ static gboolean
+ frdp_pre_connect (freerdp *freerdp_session)
+ {
+-  rdpSettings *settings = freerdp_session->settings;
++  rdpSettings *settings = freerdp_session->context->settings;
+   rdpContext *context = freerdp_session->context;
+ 
+   settings->OrderSupport[NEG_DSTBLT_INDEX] = TRUE;
+@@ -543,10 +558,11 @@ frdp_pre_connect (freerdp *freerdp_session)
+   PubSub_SubscribeChannelDisconnected (context->pubSub,
+                                        frdp_on_channel_disconnected_event_handler);
+ 
+-  if (!freerdp_client_load_addins (context->channels, settings))
+-    return FALSE;
+-
++#ifndef HAVE_FREERDP3
++  return frdp_load_channels (freerdp_session);
++#else
+   return TRUE;
++#endif
+ }
+ 
+ static gboolean
+@@ -627,9 +643,9 @@ frdp_post_connect (freerdp *freerdp_session)
+ 
+   gdi_init (freerdp_session, color_format);
+ 
+-  freerdp_session->update->BeginPaint = frdp_begin_paint;
+-  freerdp_session->update->EndPaint = frdp_end_paint;
+-  freerdp_session->update->DesktopResize = frdp_desktop_resize;
++  freerdp_session->context->update->BeginPaint = frdp_begin_paint;
++  freerdp_session->context->update->EndPaint = frdp_end_paint;
++  freerdp_session->context->update->DesktopResize = frdp_desktop_resize;
+ 
+   EventArgsInit(&e, "frdp");
+ 	e.width = settings->DesktopWidth;
+@@ -890,7 +906,7 @@ frdp_session_set_current_keyboard_layout (FrdpSession *self) {
+   gboolean               keyboard_layout_set = FALSE;
+   guint                  i;
+ 
+-  settings = priv->freerdp_session->settings;
++  settings = priv->freerdp_session->context->settings;
+ 
+   source = g_settings_schema_source_get_default ();
+   if (source != NULL) {
+@@ -925,11 +941,11 @@ frdp_session_set_current_keyboard_layout (FrdpSession *self) {
+ static void
+ frdp_session_init_freerdp (FrdpSession *self)
+ {
+-  FrdpSessionPrivate *priv = self->priv;
+-  rdpSettings        *settings;
+-  gchar              *collections[1];
+-  gchar              *build_options;
+-  int                 count = 1;
++  CONST_QUALIFIER gchar *collections[] = { "disp" };
++  FrdpSessionPrivate    *priv = self->priv;
++  rdpSettings           *settings;
++  gchar                 *build_options;
++  int                    count = 1;
+ 
+   /* Setup FreeRDP session */
+   priv->freerdp_session = freerdp_new ();
+@@ -939,13 +955,16 @@ frdp_session_init_freerdp (FrdpSession *self)
+   priv->freerdp_session->Authenticate = frdp_authenticate;
+   priv->freerdp_session->VerifyCertificateEx = frdp_certificate_verify_ex;
+   priv->freerdp_session->VerifyChangedCertificateEx = frdp_changed_certificate_verify_ex;
++#ifdef HAVE_FREERDP3
++  priv->freerdp_session->LoadChannels = frdp_load_channels;
++#endif
+ 
+   priv->freerdp_session->ContextSize = sizeof (frdpContext);
+ 
+   freerdp_context_new (priv->freerdp_session);
+   ((frdpContext *) priv->freerdp_session->context)->self = self;
+ 
+-  settings = priv->freerdp_session->settings;
++  settings = priv->freerdp_session->context->settings;
+ 
+   settings->ServerHostname = g_strdup (priv->hostname);
+   settings->ServerPort = priv->port;
+@@ -974,7 +993,6 @@ frdp_session_init_freerdp (FrdpSession *self)
+   settings->RedirectClipboard = TRUE;
+   settings->SupportGraphicsPipeline = TRUE;
+ 
+-  collections[0] = "disp";
+   freerdp_client_add_dynamic_channel (settings, count, collections);
+ 
+   build_options = g_ascii_strup (freerdp_get_build_config (), -1);
+@@ -1065,7 +1083,7 @@ frdp_session_get_property (GObject    *object,
+                            GParamSpec *pspec)
+ {
+   FrdpSession *self = (FrdpSession*) object;
+-  rdpSettings *settings = self->priv->freerdp_session->settings;
++  rdpSettings *settings = self->priv->freerdp_session->context->settings;
+ 
+   switch (property_id)
+     {
+@@ -1358,7 +1376,7 @@ frdp_session_mouse_event (FrdpSession          *self,
+   if (event & FRDP_MOUSE_EVENT_BUTTON5)
+     xflags |=  PTR_XFLAGS_BUTTON2;
+ 
+-  input = priv->freerdp_session->input;
++  input = priv->freerdp_session->context->input;
+ 
+   if (priv->scaling) {
+     x = (x - priv->offset_x) / priv->scale;
+@@ -1390,7 +1408,7 @@ void
+ frdp_session_send_key (FrdpSession  *self,
+                        GdkEventKey  *key)
+ {
+-  rdpInput *input = self->priv->freerdp_session->input;
++  rdpInput *input = self->priv->freerdp_session->context->input;
+   DWORD scancode = 0;
+   guint8 keycode;
+   guint16 flags;
+diff --git a/src/meson.build b/src/meson.build
+index 91ffd47..fef045e 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -50,16 +50,29 @@ cc = meson.get_compiler('c')
+ vala = meson.get_compiler('vala')
+ 
+ gtk_frdp_deps = [
+-  # The 2.0.0-rc4 version is needed at least, but there is no easy way to detect this.
+-  dependency('winpr2', version: '>= 2.0.0'),
+-  dependency('freerdp2', version: '>= 2.0.0'),
+-  dependency('freerdp-client2'),
+   dependency('gio-2.0', version: '>= 2.50'),
+   dependency('gtk+-3.0'),
+   dependency('fuse3', version: '>= 3.9.1'),
+   cc.find_library('m'),
+ ]
+ 
++# Keep compatibility with FreeRDP 2 for next few releases
++freerdp3_dep = dependency('freerdp3', required: false)
++if freerdp3_dep.found()
++  add_project_arguments('-DHAVE_FREERDP3', language: 'c')
++  gtk_frdp_deps += freerdp3_dep
++  gtk_frdp_deps += dependency('winpr3', version: '>= 3.0.0')
++  gtk_frdp_deps += dependency('freerdp-client3')
++else
++  # The 2.0.0-rc4 version is needed at least, but there is no easy way to detect this.
++  freerdp2_dep = dependency('freerdp2', version: '>= 2.0.0')
++  if freerdp2_dep.found()
++    gtk_frdp_deps += freerdp2_dep
++    gtk_frdp_deps += dependency('winpr2', version: '>= 2.0.0')
++    gtk_frdp_deps += dependency('freerdp-client2')
++  endif
++endif
++
+ gtk_frdp_lib = shared_library('gtk-frdp-' + api_version,
+   gtk_frdp_public_sources + gtk_frdp_private_sources,
+   dependencies: gtk_frdp_deps,
+-- 
+2.47.1
+

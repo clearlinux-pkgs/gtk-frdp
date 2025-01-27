@@ -1,0 +1,34 @@
+From d5c491e2e14b703096079ad8e6d89e23452e46b8 Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Tue, 5 Apr 2022 11:20:23 +0200
+Subject: [PATCH] frdp-session: No need to emit configure-event on scaling
+ changes
+
+---
+ src/frdp-session.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 0007b24..e9cefa7 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -178,7 +178,6 @@ create_cairo_surface (FrdpSession *self)
+   }
+ 
+   gdi = priv->freerdp_session->context->gdi;
+-
+   settings = priv->freerdp_session->context->settings;
+   gdi_resize (gdi, settings->DesktopWidth, settings->DesktopHeight);
+ 
+@@ -233,8 +232,6 @@ frdp_session_set_scaling (FrdpSession *self,
+                           gboolean     scaling)
+ {
+   self->priv->scaling = scaling;
+-
+-  frdp_session_configure_event (self->priv->display, NULL, self);
+ }
+ 
+ static gboolean
+-- 
+2.47.1
+

@@ -1,0 +1,34 @@
+From 6727ad9a21f1a428206f512f2988047d398fce8f Mon Sep 17 00:00:00 2001
+From: Felipe Borges <felipeborges@gnome.org>
+Date: Thu, 7 Jul 2022 13:42:13 +0200
+Subject: [PATCH] =?UTF-8?q?Add=20Marek=20Ka=C5=A1=C3=ADk=20as=20maintainer?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ gtk-frdp.doap | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/gtk-frdp.doap b/gtk-frdp.doap
+index 96a603c..7714afd 100644
+--- a/gtk-frdp.doap
++++ b/gtk-frdp.doap
+@@ -14,6 +14,14 @@
+ 
+   <programming-language>C</programming-language>
+ 
++  <maintainer>
++    <foaf:Person>
++      <foaf:name>Marek Kašík</foaf:name>
++      <foaf:mbxo rdf:resource="mailto:mkasik@gnome.org" />
++      <gnome:userid>mkasik</gnome:userid>
++    </foaf:Person>
++  </maintainer>
++
+   <maintainer>
+     <foaf:Person>
+       <foaf:name>Felipe Borges</foaf:name>
+-- 
+2.47.1
+

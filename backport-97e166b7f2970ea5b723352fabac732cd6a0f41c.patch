@@ -1,0 +1,37 @@
+From 97e166b7f2970ea5b723352fabac732cd6a0f41c Mon Sep 17 00:00:00 2001
+From: Marek Kasik <mkasik@redhat.com>
+Date: Wed, 13 Mar 2024 17:20:57 +0100
+Subject: [PATCH] frdp-session: Do not send coordinates with smooth scroll
+
+Pointer coordinates are ignored by server for scroll events and are expected
+to be (0, 0).
+
+Thanks to Akallabeth for reporting this.
+---
+ src/frdp-session.c | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/src/frdp-session.c b/src/frdp-session.c
+index 1b66861..af71ba3 100644
+--- a/src/frdp-session.c
++++ b/src/frdp-session.c
+@@ -1442,15 +1442,7 @@ frdp_session_mouse_smooth_scroll_event (FrdpSession          *self,
+ 
+   input = priv->freerdp_session->context->input;
+ 
+-  if (priv->scaling) {
+-    x = (x - priv->offset_x) / priv->scale;
+-    y = (y - priv->offset_y) / priv->scale;
+-  }
+-
+-  x = x < 0.0 ? 0.0 : x;
+-  y = y < 0.0 ? 0.0 : y;
+-
+-  freerdp_input_send_mouse_event (input, flags, x, y);
++  freerdp_input_send_mouse_event (input, flags, 0, 0);
+ }
+ 
+ void
+-- 
+2.47.1
+
